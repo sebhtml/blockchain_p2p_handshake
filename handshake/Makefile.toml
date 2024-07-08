@@ -1,0 +1,3 @@
+[tasks.handshake]
+command = "cargo"
+args = ["run", "--release", "--", "--target-node", "127.0.0.1", "--target-port", "30303"]
