@@ -11,6 +11,6 @@ Part 2: do the handshake
 
 1. Install Rust using "rustup" (see https://www.rust-lang.org/tools/install )
 2. Untar blockchain_p2p_handshake.tar.gz
-3. Go to blockchain_p2p_handshake/handshake
+3. Go to blockchain_p2p_handshake
 4. Type `cargo run --release -- --target-node 127.0.0.1 --target-port 30303`
 5. You can also do the handshake with `cargo make handshake`
