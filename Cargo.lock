@@ -299,7 +299,9 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "ecies",
+ "hex",
  "keccak-hash",
+ "rand",
  "regex",
  "rlp",
  "secp256k1",

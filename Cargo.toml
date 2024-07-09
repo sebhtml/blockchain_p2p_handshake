@@ -10,3 +10,5 @@ ecies = {version = "0.2", features = ["std"]}
 rlp = "0.5.2"
 keccak-hash = "0.10.0"
 regex = "1.10.5"
+hex = "0.4.3"
+rand = "0.8.5"

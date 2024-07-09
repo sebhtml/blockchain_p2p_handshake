@@ -1,13 +1,15 @@
-use std::{fmt::Display, io};
+use std::fmt::Display;
 
 #[derive(Debug)]
 pub enum HandshakeError {
     BadENodeId,
     BadENodeIdPubKeyLength,
-    BadRegex(regex::Error),
+    BadRegex(String),
     BadRecipientNodeAddress,
     BadRecipientPortInteger,
-    IOError(io::Error),
+    IOError(String),
+    Secp256k1Error(String),
+    HexError(String),
 }
 
 impl Display for HandshakeError {
@@ -19,6 +21,8 @@ impl Display for HandshakeError {
             HandshakeError::BadENodeId => write!(f, "BadENodeId"),
             HandshakeError::BadENodeIdPubKeyLength => write!(f, "BadENodeIdPubKeyLength"),
             HandshakeError::BadRegex(err) => write!(f, "BadRegex: {}", err),
+            HandshakeError::Secp256k1Error(err) => write!(f, "Secp256k1Error: {}", err),
+            HandshakeError::HexError(err) => write!(f, "HexError: {}", err),
         }
     }
 }
