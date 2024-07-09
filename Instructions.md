@@ -1,15 +1,23 @@
 
 Part 1: start the target node
 
-1. Install Go lang
-2. Clone the Geth project `git clone https://github.com/ethereum/go-ethereum.git`
-3. Go to go-ethereum and type `make geth`
-4. Start the node: `./build/bin/geth`
+1. Start a Ethereum node using Docker:
+```bash
+docker run -d --name ethereum-node -v /Users/alice/ethereum:/root \
+    -p 30303:30303 \
+    ethereum/client-go \
+```
+2. Run `docker ps` to get the identifier of the Docker container.
+3. Run `docker logs <identifier>`.
+4. In the output, locate the line with enode:// This is the Ethereum node ID.
 
 Part 2: do the handshake
 
 1. Install Rust using "rustup" (see https://www.rust-lang.org/tools/install )
 2. Untar blockchain_p2p_handshake.tar.gz
 3. Go to blockchain_p2p_handshake
-4. Type `cargo run --release -- --target-node 127.0.0.1 --target-port 30303`
-5. You can also do the handshake with `cargo make handshake`
+4. Type (you need to change the enode to use the id from step 4 in part 1.)
+```bash
+cargo run --release -- --recipient \
+  enode://c88b0b80d60d73a91179062402e65971510390813dcd5af34a9306da8c085ca1d75e3b398b6eacbdfcabc4038596fc2ea0fe35faf5ccf6202daf19db586ed2e7@127.0.0.1:30303
+```

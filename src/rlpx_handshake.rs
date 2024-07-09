@@ -10,10 +10,10 @@ use crate::handshake_error::HandshakeError;
 
 /// EIP-8 : https://github.com/ethereum/EIPs/blob/master/EIPS/eip-8.md
 pub fn get_auth_message(initiator_pri_key: &SecretKey, initiator_pub_key: &PublicKey) -> Vec<u8> {
-    #[cfg(not(feature = "x25519"))]
-    let (_initiator_pri_key, initiator_pub_key) = (&initiator_pri_key.serialize(), &initiator_pub_key.serialize());
-    #[cfg(feature = "x25519")]
-    let (sk, pk) = (initiator_pri_key.as_bytes(), initiator_pub_key.as_bytes());
+    let (_initiator_pri_key, initiator_pub_key) = (
+        &initiator_pri_key.serialize(),
+        &initiator_pub_key.serialize(),
+    );
 
     let initiator_nonce = vec![99];
     let auth_vsn = vec![4];
@@ -30,7 +30,10 @@ pub fn get_auth_message(initiator_pri_key: &SecretKey, initiator_pub_key: &Publi
     auth
 }
 
-pub fn do_handshake(stream: &mut TcpStream) -> Result<bool, HandshakeError> {
+pub fn do_rlpx_handshake(
+    stream: &mut TcpStream,
+    _recipient_pub_key: &str,
+) -> Result<bool, HandshakeError> {
     let (sk, pk) = generate_keypair();
     let auth = get_auth_message(&sk, &pk);
     stream
