@@ -3,10 +3,24 @@ use keccak_hash::keccak_256;
 use rlp::encode_list;
 use std::{
     io::{Read, Write},
-    net::TcpStream,
+    net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, TcpStream},
+    str::FromStr,
 };
 
-use crate::handshake_error::HandshakeError;
+use crate::{enode::ENode, handshake_error::HandshakeError};
+
+fn get_socket(ip_address: &str, port: u16) -> Result<SocketAddr, HandshakeError> {
+    let addr = if let Ok(addr) = Ipv4Addr::from_str(&ip_address) {
+        Ok(IpAddr::V4(addr))
+    } else if let Ok(addr) = Ipv6Addr::from_str(&ip_address) {
+        Ok(IpAddr::V6(addr))
+    } else {
+        Err(HandshakeError::BadRecipientNodeAddress)
+    }?;
+
+    let socket = SocketAddr::new(addr, port);
+    Ok(socket)
+}
 
 /// EIP-8 : https://github.com/ethereum/EIPs/blob/master/EIPS/eip-8.md
 pub fn get_auth_message(initiator_pri_key: &SecretKey, initiator_pub_key: &PublicKey) -> Vec<u8> {
@@ -30,10 +44,9 @@ pub fn get_auth_message(initiator_pri_key: &SecretKey, initiator_pub_key: &Publi
     auth
 }
 
-pub fn do_rlpx_handshake(
-    stream: &mut TcpStream,
-    _recipient_pub_key: &str,
-) -> Result<bool, HandshakeError> {
+pub fn do_rlpx_handshake(enode: &ENode) -> Result<bool, HandshakeError> {
+    let socket = get_socket(&enode.ip_addr, enode.port)?;
+    let mut stream = TcpStream::connect(socket).map_err(|err| HandshakeError::IOError(err))?;
     let (sk, pk) = generate_keypair();
     let auth = get_auth_message(&sk, &pk);
     stream
