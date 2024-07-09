@@ -6,7 +6,6 @@ Part 1: start the target node
 3. Go to go-ethereum and type `make geth`
 4. Start the node: `./build/bin/geth`
 
-
 Part 2: do the handshake
 
 1. Install Rust using "rustup" (see https://www.rust-lang.org/tools/install )

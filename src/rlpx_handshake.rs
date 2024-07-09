@@ -8,25 +8,22 @@ use std::{
 
 use crate::handshake_error::HandshakeError;
 
-/// See https://github.com/ethereum/devp2p/blob/master/rlpx.md
-/// See https://github.com/ethereum/go-ethereum/tree/master/p2p/rlpx/rlpx.go
-/// See makeAuthMsg https://github.com/ethereum/go-ethereum/blob/master/p2p/rlpx/rlpx.go#L543
-/// See sealEIP8 https://github.com/ethereum/go-ethereum/blob/master/p2p/rlpx/rlpx.go#L629
-pub fn get_auth_message(sk: &SecretKey, pk: &PublicKey) -> Vec<u8> {
+/// EIP-8 : https://github.com/ethereum/EIPs/blob/master/EIPS/eip-8.md
+pub fn get_auth_message(initiator_pri_key: &SecretKey, initiator_pub_key: &PublicKey) -> Vec<u8> {
     #[cfg(not(feature = "x25519"))]
-    let (_sk, pk) = (&sk.serialize(), &pk.serialize());
+    let (_initiator_pri_key, initiator_pub_key) = (&initiator_pri_key.serialize(), &initiator_pub_key.serialize());
     #[cfg(feature = "x25519")]
-    let (sk, pk) = (sk.as_bytes(), pk.as_bytes());
+    let (sk, pk) = (initiator_pri_key.as_bytes(), initiator_pub_key.as_bytes());
 
     let initiator_nonce = vec![99];
     let auth_vsn = vec![4];
     let mut sig = vec![0 as u8; 256 / 8];
-    keccak_256(pk, sig.as_mut());
-    let pk_vec = pk.to_vec();
+    keccak_256(initiator_pub_key, sig.as_mut());
+    let pk_vec = initiator_pub_key.to_vec();
     let list_for_auth_body = [&sig, &pk_vec, &initiator_nonce, &auth_vsn];
     let auth_body = encode_list::<Vec<u8>, &Vec<u8>>(&list_for_auth_body);
     let msg = &auth_body;
-    let enc_auth_body = &encrypt(pk, msg).unwrap();
+    let enc_auth_body = &encrypt(initiator_pub_key, msg).unwrap();
     let auth_size = enc_auth_body.len();
     let auth_size = auth_size.to_be_bytes();
     let auth = [&auth_size, enc_auth_body.as_slice()].concat();
