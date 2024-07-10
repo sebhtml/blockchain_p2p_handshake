@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "4.5.8", features = ["derive"] }
-secp256k1 = { version = "0.29.0", features = ["rand", "global-context"]  }
+secp256k1 = { version = "0.29.0", features = ["rand", "global-context", "recovery"]  }
 rlp = { version = "0.5.2", features = ["derive"] }
 regex = "1.10.5"
 hex = "0.4.3"

@@ -1,5 +1,4 @@
 use rand::Rng;
-use rlp::Encodable;
 use secp256k1::{generate_keypair, PublicKey};
 use std::{
     io::{Read, Write},
@@ -30,8 +29,7 @@ fn prepare_eip8_auth_packet(
     auth_message: &AuthMessage,
 ) -> Result<Vec<u8>, HandshakeError> {
     // Encode auth with RLP
-    let auth_body = auth_message.rlp_bytes().to_vec();
-    let auth_body = rlp::encode(&auth_body);
+    let auth_body = auth_message.as_rlp_list();
 
     // Add random padding
     let mut rng = rand::thread_rng();
