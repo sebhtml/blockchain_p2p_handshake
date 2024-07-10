@@ -1,10 +1,9 @@
-use std::str::FromStr;
-
 use crate::handshake_error::HandshakeError;
 use regex::Regex;
 use secp256k1::PublicKey;
 
-pub const PUB_KEY_LEN: usize = 512 / 8;
+pub const PUB_KEY_LEN_BITS: usize = 512;
+pub const PUB_KEY_LEN: usize = PUB_KEY_LEN_BITS / u8::BITS as usize;
 pub struct ENode {
     pub id: String,
     pub ip_addr: String,

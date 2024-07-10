@@ -53,7 +53,7 @@ fn prepare_eip8_auth_packet(
 pub fn do_rlpx_handshake(recipient_enode: &ENode) -> Result<bool, HandshakeError> {
     let socket = get_socket(&recipient_enode.ip_addr, recipient_enode.port)?;
     let mut stream = TcpStream::connect(socket).unwrap();
-    let mut rng = rand::thread_rng();
+    let mut rng = secp256k1::rand::thread_rng();
     let (initiator_sk, initiator_pk) = generate_keypair(&mut rng);
     let recipient_pk: PublicKey = recipient_enode.try_into()?;
 
