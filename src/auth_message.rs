@@ -31,9 +31,11 @@ impl AuthMessage {
             .zip(nonce.iter())
             .map(|(&x1, &x2)| x1 ^ x2)
             .collect();
-        let context = Secp256k1::new();
+
         let msg: [u8; 32] = msg.try_into().unwrap();
         let msg = Message::from_digest(msg);
+
+        let context = Secp256k1::new();
         let signature = context
             .sign_ecdsa(&msg, &initiator_sk)
             .serialize_compact()

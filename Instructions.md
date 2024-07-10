@@ -19,5 +19,5 @@ Part 2: do the handshake
 4. Type (you need to change the enode to use the id from step 4 in part 1.)
 ```bash
 cargo run --release -- --recipient \
-  enode://c88b0b80d60d73a91179062402e65971510390813dcd5af34a9306da8c085ca1d75e3b398b6eacbdfcabc4038596fc2ea0fe35faf5ccf6202daf19db586ed2e7@127.0.0.1:30303
+  enode://113575d657ca12f9c350994b6d0b30fc211e269c0be6b8f0a840add85c179f0c74fbc35125c5cd219ce3b60e9c65d78607ef00ddb1ccc6667bd7a9df936f444e@127.0.0.1:30303
 ```

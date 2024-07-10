@@ -5,6 +5,7 @@ use std::{
     io::{Read, Write},
     net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, TcpStream},
     str::FromStr,
+    thread, time,
 };
 
 use crate::{
@@ -30,22 +31,56 @@ fn prepare_eip8_auth_packet(
 ) -> Result<Vec<u8>, HandshakeError> {
     // Encode auth with RLP
     let auth_body = auth_message.rlp_bytes().to_vec();
+    let auth_body = rlp::encode(&auth_body);
 
     // Add random padding
     let mut rng = rand::thread_rng();
-    let random_padding = rng.gen_range(100..300);
-    let random_bytes: Vec<u8> = (0..random_padding).map(|_| rand::random::<u8>()).collect();
+    let random_padding = rng.gen_range(100..200);
+    let random_bytes: Vec<u8> = vec![0; random_padding];
     let auth_body = [auth_body.to_vec(), random_bytes].concat();
 
     // Encrypt auth with secp256k1
-    let enc_auth_body = &ecies_encrypt(&recipient_pk, &auth_body).unwrap();
-
-    // Make auth-body
-    let auth_size = enc_auth_body.len() as u16;
+    let auth_size: usize = 65 // ephemeral public key
+     + 16 // initialization vector (iv)
+     + auth_body.len() // encrypted message
+     + 32; // message authentication code (MAC) - note that MAC key and HMAC tag have the same length.
+    let auth_size = u16::try_from(auth_size).unwrap();
     let auth_size = auth_size.to_be_bytes();
+    let enc_auth_body = &ecies_encrypt(&recipient_pk, &auth_body, &auth_size).unwrap();
+
+    // Make auth-packet
     let auth_packet = [&auth_size, enc_auth_body.as_slice()].concat();
 
     Ok(auth_packet)
+}
+
+fn write_packet(fd: &mut impl Write, packet: &[u8]) -> Result<usize, HandshakeError> {
+    let bytes_written = fd
+        .write(&packet)
+        .map_err(|err| HandshakeError::IOError(err.to_string()))?;
+    Ok(bytes_written)
+}
+
+fn read_packet(fd: &mut impl Read) -> Result<Vec<u8>, HandshakeError> {
+    let mut ack_size: Option<u16> = None;
+    let mut read_bytes = vec![];
+    while ack_size == None {
+        let mut ack_size_bytes = vec![0; 2];
+        let bytes_read = fd
+            .read(&mut ack_size_bytes)
+            .map_err(|err| HandshakeError::IOError(err.to_string()))?;
+        println!("Read bytes: {}", bytes_read);
+        if bytes_read == ack_size_bytes.len() {
+            let read_ack_size = u16::from_be_bytes([ack_size_bytes[0], ack_size_bytes[1]]);
+            read_bytes.extend_from_slice(&ack_size_bytes);
+            println!("ack_size: {}", read_ack_size);
+            ack_size = Some(read_ack_size);
+        }
+        let wait_duration = time::Duration::from_millis(100);
+        thread::sleep(wait_duration);
+    }
+
+    Ok(read_bytes)
 }
 
 /// See RLPx : https://github.com/ethereum/devp2p/blob/master/rlpx.md
@@ -57,21 +92,16 @@ pub fn do_rlpx_handshake(recipient_enode: &ENode) -> Result<bool, HandshakeError
     let (initiator_sk, initiator_pk) = generate_keypair(&mut rng);
     let recipient_pk: PublicKey = recipient_enode.try_into()?;
 
-    // Generate auth
+    // Generate auth packet.
     let auth_message = AuthMessage::try_new(&initiator_sk, &initiator_pk, &recipient_pk)?;
     let auth_packet = prepare_eip8_auth_packet(&recipient_pk, &auth_message)?;
 
-    stream
-        .write(&auth_packet)
-        .map_err(|err| HandshakeError::IOError(err.to_string()))?;
+    let bytes_written = write_packet(&mut stream, &auth_packet)?;
+    println!("bytes_written: {}", bytes_written);
 
-    // Read Ack message.
-    let mut ack_size_bytes = vec![0; 2];
-    stream
-        .read(&mut ack_size_bytes)
-        .map_err(|err| HandshakeError::IOError(err.to_string()))?;
-    let ack_size = u16::from_be_bytes([ack_size_bytes[0], ack_size_bytes[1]]);
-    println!("ack_size: {}", ack_size);
+    // Read Ack packet.
+    let ack_packet = read_packet(&mut stream)?;
+    println!("bytes_read: {}", ack_packet.len());
 
     Ok(false)
 }
