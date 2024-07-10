@@ -26,9 +26,8 @@ pub fn ecies_encrypt(
 
     // KDF(k, len): the NIST SP 800-56 Concatenation Key Derivation Function
     let mut shared_secret_derived_key = [0_u8; 32];
-    //concat_kdf::derive_key_into::<Sha256>(&shared_secret, &[], &mut shared_secret_derived_key)
-    //.unwrap();
-    kdf(&shared_secret, &[], &mut shared_secret_derived_key);
+    concat_kdf::derive_key_into::<Sha256>(&shared_secret, &[], &mut shared_secret_derived_key)
+        .unwrap();
     let enc_key: [u8; 16] = shared_secret_derived_key[0..16].try_into().unwrap();
 
     // AES(k, iv, m): the AES-128 encryption function in CTR mode.
@@ -61,24 +60,4 @@ pub fn ecies_encrypt(
         hmac_tag,
     ]
     .concat())
-}
-
-pub fn kdf(secret: &[u8], data: &[u8], dest: &mut [u8]) {
-    let mut counter = 1_u32;
-    let mut offset = 0_usize;
-    while offset < dest.len() {
-        let mut hasher = Sha256::default();
-        let buf = [
-            (counter >> 24) as u8,
-            (counter >> 16) as u8,
-            (counter >> 8) as u8,
-            counter as u8,
-        ];
-        hasher.update(&buf);
-        hasher.update(secret);
-        hasher.update(data);
-        dest[offset..(offset + 32)].copy_from_slice(&hasher.finalize());
-        offset += 32;
-        counter += 1;
-    }
 }
