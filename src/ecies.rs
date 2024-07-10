@@ -4,6 +4,7 @@ use aes::Aes128;
 use ctr::Ctr128BE;
 use hmac::Hmac;
 use hmac::Mac;
+use secp256k1::ecdh::shared_secret_point;
 use secp256k1::{ecdh::SharedSecret, PublicKey, Secp256k1, SecretKey};
 use sha2::Digest;
 use sha2::Sha256;
@@ -21,14 +22,13 @@ pub fn ecies_encrypt(
     let ephemeral_sk = SecretKey::new(&mut rng);
     let context = Secp256k1::new();
     let ephemeral_pk = PublicKey::from_secret_key(&context, &ephemeral_sk).serialize_uncompressed();
-    let shared_secret = SharedSecret::new(&pub_key, &ephemeral_sk)
-        .secret_bytes()
-        .to_vec();
+    let shared_secret = shared_secret_point(&pub_key, &ephemeral_sk)[0..32].to_vec();
 
     // KDF(k, len): the NIST SP 800-56 Concatenation Key Derivation Function
     let mut shared_secret_derived_key = [0_u8; 32];
-    concat_kdf::derive_key_into::<Sha256>(&shared_secret, &[], &mut shared_secret_derived_key)
-        .unwrap();
+    //concat_kdf::derive_key_into::<Sha256>(&shared_secret, &[], &mut shared_secret_derived_key)
+    //.unwrap();
+    kdf(&shared_secret, &[], &mut shared_secret_derived_key);
     let enc_key: [u8; 16] = shared_secret_derived_key[0..16].try_into().unwrap();
 
     // AES(k, iv, m): the AES-128 encryption function in CTR mode.
@@ -46,7 +46,9 @@ pub fn ecies_encrypt(
     // MAC(k, m): HMAC using the SHA-256 hash function.
     let mac_key = Sha256::digest(&shared_secret_derived_key[16..32]);
 
+    // TODO fix HMAC and check HMAC in geth.
     let mut hmac = Hmac::<Sha256>::new_from_slice(&mac_key).unwrap();
+    hmac.update(&initialization_vector);
     hmac.update(&encrypted_message);
     hmac.update(auth_data);
     let hmac_tag = hmac.finalize().into_bytes().to_vec();
@@ -59,4 +61,24 @@ pub fn ecies_encrypt(
         hmac_tag,
     ]
     .concat())
+}
+
+pub fn kdf(secret: &[u8], data: &[u8], dest: &mut [u8]) {
+    let mut counter = 1_u32;
+    let mut offset = 0_usize;
+    while offset < dest.len() {
+        let mut hasher = Sha256::default();
+        let buf = [
+            (counter >> 24) as u8,
+            (counter >> 16) as u8,
+            (counter >> 8) as u8,
+            counter as u8,
+        ];
+        hasher.update(&buf);
+        hasher.update(secret);
+        hasher.update(data);
+        dest[offset..(offset + 32)].copy_from_slice(&hasher.finalize());
+        offset += 32;
+        counter += 1;
+    }
 }

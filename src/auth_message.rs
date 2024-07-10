@@ -16,9 +16,6 @@ impl AuthMessage {
         initiator_pk: &PublicKey,
         recipient_pk: &PublicKey,
     ) -> Result<AuthMessage, HandshakeError> {
-        let initiator_pub_key = &initiator_pk.serialize();
-        let initiator_pub_key_vec = initiator_pub_key.to_vec();
-
         let auth_vsn = 4;
 
         let nonce: Vec<u8> = (0..32).map(|_| rand::random::<u8>()).collect();
@@ -37,18 +34,18 @@ impl AuthMessage {
         let msg = Message::from_digest(msg);
 
         let context = Secp256k1::new();
-        let recoverable_signature = context
-            .sign_ecdsa_recoverable(&msg, &initiator_sk);
+        let recoverable_signature = context.sign_ecdsa_recoverable(&msg, &initiator_sk);
         let (recovery_id, signature_bytes) = recoverable_signature.serialize_compact();
         let recovery_id = u8::try_from(recovery_id.to_i32()).unwrap();
         let signature = vec![signature_bytes.to_vec(), vec![recovery_id]].concat();
 
         let auth = AuthMessage {
             signature,
-            initiator_pub_key: initiator_pub_key_vec,
+            initiator_pub_key: initiator_pk.serialize_uncompressed()[1..].to_vec(),
             nonce,
             version: auth_vsn,
         };
+        println!("initiator_pk len: {}", auth.initiator_pub_key.len());
         Ok(auth)
     }
 
@@ -63,4 +60,3 @@ impl AuthMessage {
         auth_body.to_vec()
     }
 }
-

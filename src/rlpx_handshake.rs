@@ -43,6 +43,7 @@ fn prepare_eip8_auth_packet(
      + auth_body.len() // encrypted message
      + 32; // message authentication code (MAC) - note that MAC key and HMAC tag have the same length.
     let auth_size = u16::try_from(auth_size).unwrap();
+    println!("auth_size: {}", auth_size);
     let auth_size = auth_size.to_be_bytes();
     let enc_auth_body = &ecies_encrypt(&recipient_pk, &auth_body, &auth_size).unwrap();
 
