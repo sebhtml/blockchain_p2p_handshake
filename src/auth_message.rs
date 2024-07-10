@@ -1,7 +1,7 @@
 use crate::handshake_error::HandshakeError;
-use ecies::PublicKey;
 use keccak_hash::keccak_256;
 use rlp::{RlpDecodable, RlpEncodable};
+use secp256k1::PublicKey;
 
 #[derive(Debug, RlpEncodable, RlpDecodable)]
 pub struct AuthMessage {

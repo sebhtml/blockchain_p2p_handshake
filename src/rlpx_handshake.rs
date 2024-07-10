@@ -1,13 +1,15 @@
-use ecies::{encrypt, utils::generate_keypair, PublicKey};
 use rand::Rng;
 use rlp::Encodable;
+use secp256k1::{generate_keypair, PublicKey};
 use std::{
     io::{Read, Write},
     net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, TcpStream},
     str::FromStr,
 };
 
-use crate::{auth_message::AuthMessage, enode::ENode, handshake_error::HandshakeError};
+use crate::{
+    auth_message::AuthMessage, ecies::ecies_encrypt, enode::ENode, handshake_error::HandshakeError,
+};
 
 fn get_socket(ip_address: &str, port: u16) -> Result<SocketAddr, HandshakeError> {
     let addr = if let Ok(addr) = Ipv4Addr::from_str(&ip_address) {
@@ -37,8 +39,7 @@ fn prepare_eip8_auth_packet(
 
     // Encrypt auth with secp256k1
     let recipient_pub_key: PublicKey = recipient_enode.try_into()?;
-    let recipient_pub_key = &recipient_pub_key.serialize();
-    let enc_auth_body = &encrypt(recipient_pub_key, &auth_body).unwrap();
+    let enc_auth_body = &ecies_encrypt(&recipient_pub_key, &auth_body).unwrap();
 
     // Make auth-body
     let auth_size = enc_auth_body.len() as u16;
@@ -54,7 +55,8 @@ pub fn do_rlpx_handshake(recipient_enode: &ENode) -> Result<bool, HandshakeError
     let socket = get_socket(&recipient_enode.ip_addr, recipient_enode.port)?;
     let mut stream =
         TcpStream::connect(socket).map_err(|err| HandshakeError::IOError(err.to_string()))?;
-    let (_initiator_pri_key, initiator_pub_key) = generate_keypair();
+    let mut rng = rand::thread_rng();
+    let (_initiator_pri_key, initiator_pub_key) = generate_keypair(&mut rng);
 
     // Generate auth
     let auth_message = AuthMessage::try_new(&initiator_pub_key)?;

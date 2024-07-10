@@ -4,6 +4,7 @@ use clap::Parser;
 use enode::ENode;
 use rlpx_handshake::do_rlpx_handshake;
 pub mod auth_message;
+pub mod ecies;
 pub mod enode;
 pub mod handshake_error;
 pub mod rlpx_handshake;
