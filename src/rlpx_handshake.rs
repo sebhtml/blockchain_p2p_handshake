@@ -1,14 +1,13 @@
 use ecies::{encrypt, utils::generate_keypair, PublicKey};
-use keccak_hash::keccak_256;
 use rand::Rng;
-use rlp::encode_list;
+use rlp::Encodable;
 use std::{
     io::{Read, Write},
     net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, TcpStream},
     str::FromStr,
 };
 
-use crate::{enode::ENode, handshake_error::HandshakeError};
+use crate::{auth_message::AuthMessage, enode::ENode, handshake_error::HandshakeError};
 
 fn get_socket(ip_address: &str, port: u16) -> Result<SocketAddr, HandshakeError> {
     let addr = if let Ok(addr) = Ipv4Addr::from_str(&ip_address) {
@@ -23,67 +22,46 @@ fn get_socket(ip_address: &str, port: u16) -> Result<SocketAddr, HandshakeError>
     Ok(socket)
 }
 
-/// See RLPx : https://github.com/ethereum/devp2p/blob/master/rlpx.md
-/// See EIP-8 : https://github.com/ethereum/EIPs/blob/master/EIPS/eip-8.md
-fn get_auth_message(initiator_pub_key: &PublicKey, recipient_pub_key: &PublicKey) -> Vec<u8> {
-    let initiator_pub_key = &initiator_pub_key.serialize();
-    let recipient_pub_key = &recipient_pub_key.serialize();
+fn prepare_eip8_auth_packet(
+    recipient_enode: &ENode,
+    auth_message: &AuthMessage,
+) -> Result<Vec<u8>, HandshakeError> {
+    // Encode auth with RLP
+    let auth_body = auth_message.rlp_bytes().to_vec();
 
-    // TODO vsn must be a u32 in big endian.
-    let auth_vsn = vec![4];
-
-    let initiator_nonce: Vec<u8> = (0..32).map(|_| rand::random::<u8>()).collect();
-    println!("initiator_nonce: {}", hex::encode(&initiator_nonce));
-
-    // TODO the sig must be a signature of XOR(nonce, shared-secret),
-    // not a signature of the  initiator pub key.
-    let mut sig = vec![0 as u8; 256 / 8];
-    keccak_256(initiator_pub_key, sig.as_mut());
-    println!("sig: {}", hex::encode(&sig));
-
-    let initiator_pub_key_vec = initiator_pub_key.to_vec();
-    println!(
-        "initiator_pub_key_vec: {}",
-        hex::encode(&initiator_pub_key_vec)
-    );
-
-    let list_for_auth_body = [&sig, &initiator_pub_key_vec, &initiator_nonce, &auth_vsn];
-    let auth_body = encode_list::<Vec<u8>, &Vec<u8>>(&list_for_auth_body);
-
+    // Add random padding
     let mut rng = rand::thread_rng();
     let random_padding = rng.gen_range(100..300);
     let random_bytes: Vec<u8> = (0..random_padding).map(|_| rand::random::<u8>()).collect();
     let auth_body = [auth_body.to_vec(), random_bytes].concat();
 
-    println!("auth_body {}", hex::encode(&auth_body));
-    let msg = &auth_body;
-    let enc_auth_body = &encrypt(recipient_pub_key, msg).unwrap();
+    // Encrypt auth with secp256k1
+    let recipient_pub_key: PublicKey = recipient_enode.try_into()?;
+    let recipient_pub_key = &recipient_pub_key.serialize();
+    let enc_auth_body = &encrypt(recipient_pub_key, &auth_body).unwrap();
 
+    // Make auth-body
     let auth_size = enc_auth_body.len() as u16;
     let auth_size = auth_size.to_be_bytes();
-    let auth = [&auth_size, enc_auth_body.as_slice()].concat();
-    auth
+    let auth_packet = [&auth_size, enc_auth_body.as_slice()].concat();
+
+    Ok(auth_packet)
 }
 
-fn get_recipient_pub_key(enode: &ENode) -> Result<PublicKey, HandshakeError> {
-    let bytes = hex::decode(&enode.id).map_err(|err| HandshakeError::HexError(err.to_string()))?;
-    let recipient_pub_key = PublicKey::parse_slice(&bytes, None)
-        .map_err(|err| HandshakeError::Secp256k1Error(err.to_string()))?;
-    Ok(recipient_pub_key)
-}
-
-pub fn do_rlpx_handshake(enode: &ENode) -> Result<bool, HandshakeError> {
-    let socket = get_socket(&enode.ip_addr, enode.port)?;
+/// See RLPx : https://github.com/ethereum/devp2p/blob/master/rlpx.md
+/// See EIP-8 : https://github.com/ethereum/EIPs/blob/master/EIPS/eip-8.md
+pub fn do_rlpx_handshake(recipient_enode: &ENode) -> Result<bool, HandshakeError> {
+    let socket = get_socket(&recipient_enode.ip_addr, recipient_enode.port)?;
     let mut stream =
         TcpStream::connect(socket).map_err(|err| HandshakeError::IOError(err.to_string()))?;
     let (_initiator_pri_key, initiator_pub_key) = generate_keypair();
-    let recipient_pub_key = get_recipient_pub_key(enode)?;
 
-    // Write auth message.
-    let auth = get_auth_message(&initiator_pub_key, &recipient_pub_key);
-    println!("auth: {}", hex::encode(&auth));
+    // Generate auth
+    let auth_message = AuthMessage::try_new(&initiator_pub_key)?;
+    let auth_packet = prepare_eip8_auth_packet(recipient_enode, &auth_message)?;
+
     stream
-        .write(&auth)
+        .write(&auth_packet)
         .map_err(|err| HandshakeError::IOError(err.to_string()))?;
 
     // Read Ack message.

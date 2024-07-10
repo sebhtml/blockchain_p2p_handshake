@@ -1,4 +1,5 @@
 use crate::handshake_error::HandshakeError;
+use ecies::PublicKey;
 use regex::Regex;
 
 pub const PUB_KEY_LEN: usize = 512 / 8;
@@ -26,6 +27,18 @@ impl TryFrom<&str> for ENode {
 
         let enode = ENode { id, ip_addr, port };
         Ok(enode)
+    }
+}
+
+impl TryInto<PublicKey> for &ENode {
+    type Error = HandshakeError;
+
+    fn try_into(self) -> Result<PublicKey, Self::Error> {
+        let bytes =
+            hex::decode(&self.id).map_err(|err| HandshakeError::HexError(err.to_string()))?;
+        let recipient_pub_key = PublicKey::parse_slice(&bytes, None)
+            .map_err(|err| HandshakeError::Secp256k1Error(err.to_string()))?;
+        Ok(recipient_pub_key)
     }
 }
 
