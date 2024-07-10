@@ -36,8 +36,12 @@ impl TryInto<PublicKey> for &ENode {
     type Error = HandshakeError;
 
     fn try_into(self) -> Result<PublicKey, Self::Error> {
-        let recipient_pub_key = PublicKey::from_str(&self.id)
-            .map_err(|err| HandshakeError::Secp256k1Error(err.to_string()))?;
+        let bytes =
+            hex::decode(&self.id).map_err(|err| HandshakeError::HexError(err.to_string()))?;
+        let mut data = [0_u8; 65];
+        data[0] = 4;
+        data[1..].copy_from_slice(&bytes);
+        let recipient_pub_key = PublicKey::from_slice(&data).unwrap();
         Ok(recipient_pub_key)
     }
 }

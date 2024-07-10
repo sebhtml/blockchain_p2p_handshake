@@ -5,7 +5,7 @@ Part 1: start the target node
 ```bash
 docker run -d --name ethereum-node -v /Users/alice/ethereum:/root \
     -p 30303:30303 \
-    ethereum/client-go \
+    ethereum/client-go
 ```
 2. Run `docker ps` to get the identifier of the Docker container.
 3. Run `docker logs <identifier>`.

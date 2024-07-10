@@ -25,7 +25,7 @@ fn get_socket(ip_address: &str, port: u16) -> Result<SocketAddr, HandshakeError>
 }
 
 fn prepare_eip8_auth_packet(
-    recipient_enode: &ENode,
+    recipient_pk: &PublicKey,
     auth_message: &AuthMessage,
 ) -> Result<Vec<u8>, HandshakeError> {
     // Encode auth with RLP
@@ -38,8 +38,7 @@ fn prepare_eip8_auth_packet(
     let auth_body = [auth_body.to_vec(), random_bytes].concat();
 
     // Encrypt auth with secp256k1
-    let recipient_pub_key: PublicKey = recipient_enode.try_into()?;
-    let enc_auth_body = &ecies_encrypt(&recipient_pub_key, &auth_body).unwrap();
+    let enc_auth_body = &ecies_encrypt(&recipient_pk, &auth_body).unwrap();
 
     // Make auth-body
     let auth_size = enc_auth_body.len() as u16;
@@ -53,14 +52,14 @@ fn prepare_eip8_auth_packet(
 /// See EIP-8 : https://github.com/ethereum/EIPs/blob/master/EIPS/eip-8.md
 pub fn do_rlpx_handshake(recipient_enode: &ENode) -> Result<bool, HandshakeError> {
     let socket = get_socket(&recipient_enode.ip_addr, recipient_enode.port)?;
-    let mut stream =
-        TcpStream::connect(socket).map_err(|err| HandshakeError::IOError(err.to_string()))?;
+    let mut stream = TcpStream::connect(socket).unwrap();
     let mut rng = rand::thread_rng();
-    let (_initiator_pri_key, initiator_pub_key) = generate_keypair(&mut rng);
+    let (initiator_sk, initiator_pk) = generate_keypair(&mut rng);
+    let recipient_pk: PublicKey = recipient_enode.try_into()?;
 
     // Generate auth
-    let auth_message = AuthMessage::try_new(&initiator_pub_key)?;
-    let auth_packet = prepare_eip8_auth_packet(recipient_enode, &auth_message)?;
+    let auth_message = AuthMessage::try_new(&initiator_sk, &initiator_pk, &recipient_pk)?;
+    let auth_packet = prepare_eip8_auth_packet(&recipient_pk, &auth_message)?;
 
     stream
         .write(&auth_packet)
