@@ -6,10 +6,11 @@ use std::{
     str::FromStr,
 };
 
-use crate::{
-    ack_message::AckMessage,
+use crate::rlpx::{ack_message::AckMessage, ecies::ecies_decrypt};
+
+use super::{
     auth_message::AuthMessage,
-    ecies::{ecies_decrypt, ecies_encrypt, ECIES_IV_LEN, ECIES_PUBK_LEN, ECIES_TAG_LEN},
+    ecies::{ecies_encrypt, ECIES_IV_LEN, ECIES_PUBK_LEN, ECIES_TAG_LEN},
     enode::ENode,
     handshake_error::HandshakeError,
 };
@@ -86,7 +87,6 @@ fn read_ack_packet(fd: &mut impl Read) -> Result<Vec<u8>, HandshakeError> {
 }
 
 /// See RLPx : https://github.com/ethereum/devp2p/blob/master/rlpx.md
-/// See EIP-8 : https://github.com/ethereum/EIPs/blob/master/EIPS/eip-8.md
 pub fn do_rlpx_handshake_as_initiator(recipient_enode: &ENode) -> Result<bool, HandshakeError> {
     let socket = get_socket(&recipient_enode.ip_addr, recipient_enode.port)?;
     let mut stream = TcpStream::connect(socket).unwrap();
@@ -121,6 +121,7 @@ pub fn do_rlpx_handshake_as_initiator(recipient_enode: &ENode) -> Result<bool, H
     println!("Got ack object: {:?}", ack);
 
     // TODO send hello to recipient
+
     // TODO receive hello from recipient
     Ok(false)
 }

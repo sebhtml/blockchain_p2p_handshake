@@ -10,7 +10,7 @@ use secp256k1::{PublicKey, SecretKey};
 use sha2::Digest;
 use sha2::Sha256;
 
-use crate::handshake_error::HandshakeError;
+use super::handshake_error::HandshakeError;
 
 pub const ECIES_PUBK_LEN: usize = 65;
 pub const ECIES_AES_KEY_LEN: usize = 16;

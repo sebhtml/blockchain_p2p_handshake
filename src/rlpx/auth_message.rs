@@ -1,6 +1,8 @@
-use crate::{handshake_error::HandshakeError, NONCE_LENGTH};
+use super::handshake_error::HandshakeError;
 use rlp::RlpStream;
 use secp256k1::{ecdh::SharedSecret, Message, PublicKey, Secp256k1, SecretKey};
+
+pub const NONCE_LENGTH: usize = 32;
 
 /// auth-body = [sig, initiator-pubk, initiator-nonce, auth-vsn, ...]
 /// See https://github.com/ethereum/devp2p/blob/master/rlpx.md

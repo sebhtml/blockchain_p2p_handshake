@@ -1,16 +1,6 @@
 use clap::Parser;
-use enode::ENode;
-
-// TODO add module 'rlpx' and put all files in it except 'main'
-use rlpx_handshake::do_rlpx_handshake_as_initiator;
-pub mod ack_message;
-pub mod auth_message;
-pub mod ecies;
-pub mod enode;
-pub mod handshake_error;
-pub mod rlpx_handshake;
-
-pub const NONCE_LENGTH: usize = 32;
+use rlpx::{enode::ENode, rlpx_handshake::do_rlpx_handshake_as_initiator};
+pub mod rlpx;
 
 #[derive(Parser, Debug)]
 #[command(version, about)]

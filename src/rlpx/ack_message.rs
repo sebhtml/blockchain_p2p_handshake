@@ -1,6 +1,6 @@
 use rlp::Rlp;
 
-use crate::{ecies::ECIES_PUBK_LEN, handshake_error::HandshakeError, NONCE_LENGTH};
+use super::{auth_message::NONCE_LENGTH, ecies::ECIES_PUBK_LEN, handshake_error::HandshakeError};
 
 /// ack-body = [recipient-ephemeral-pubk, recipient-nonce, ack-vsn, ...]
 /// See https://github.com/ethereum/devp2p/blob/master/rlpx.md
