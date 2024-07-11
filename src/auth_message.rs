@@ -45,13 +45,12 @@ impl AuthMessage {
             nonce: nonce.to_vec(),
             version: auth_vsn,
         };
-        println!("initiator_pk len: {}", auth.initiator_pub_key.len());
+
         Ok(auth)
     }
 
     pub fn as_rlp_list(&self) -> Vec<u8> {
         let mut auth_body = RlpStream::new_list(4);
-        println!("Signature len {}", self.signature.len());
         auth_body.append(&self.signature);
         auth_body.append(&self.initiator_pub_key);
         auth_body.append(&self.nonce);

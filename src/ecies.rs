@@ -58,3 +58,12 @@ pub fn ecies_encrypt(
     ]
     .concat())
 }
+
+pub fn ecies_decrypt(encrypted_message: &[u8]) -> Result<Vec<u8>, HandshakeError> {
+    // TODO
+    println!(
+        "TODO must decrypt encrypted_message of length {}",
+        encrypted_message.len()
+    );
+    Ok(vec![])
+}

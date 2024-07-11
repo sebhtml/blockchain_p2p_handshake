@@ -4,11 +4,13 @@ use std::{
     io::{Read, Write},
     net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, TcpStream},
     str::FromStr,
-    thread, time,
 };
 
 use crate::{
-    auth_message::AuthMessage, ecies::ecies_encrypt, enode::ENode, handshake_error::HandshakeError,
+    auth_message::AuthMessage,
+    ecies::{ecies_decrypt, ecies_encrypt},
+    enode::ENode,
+    handshake_error::HandshakeError,
 };
 
 fn get_socket(ip_address: &str, port: u16) -> Result<SocketAddr, HandshakeError> {
@@ -43,7 +45,6 @@ fn prepare_eip8_auth_packet(
      + auth_body.len() // encrypted message
      + 32; // message authentication code (MAC) - note that MAC key and HMAC tag have the same length.
     let auth_size = u16::try_from(auth_size).unwrap();
-    println!("auth_size: {}", auth_size);
     let auth_size = auth_size.to_be_bytes();
     let enc_auth_body = &ecies_encrypt(&recipient_pk, &auth_body, &auth_size).unwrap();
 
@@ -60,34 +61,35 @@ fn write_packet(fd: &mut impl Write, packet: &[u8]) -> Result<usize, HandshakeEr
     Ok(bytes_written)
 }
 
-fn read_packet(fd: &mut impl Read) -> Result<Vec<u8>, HandshakeError> {
-    let mut ack_size: Option<u16> = None;
-    let mut read_bytes = vec![];
+/// See https://github.com/ethereum/devp2p/blob/master/rlpx.md
+/// ack = ack-size || enc-ack-body
+/// ack-size = size of enc-ack-body, encoded as a big-endian 16-bit integer
+fn read_ack_packet(fd: &mut impl Read) -> Result<Vec<u8>, HandshakeError> {
+    let mut ack_size_bytes = vec![0; 2];
 
-    // Do busy polling.
-    // TODO use select() to poll instead or tokio or whatnot.
-    while ack_size == None {
-        let mut ack_size_bytes = vec![0; 2];
+    let bytes_read = fd
+        .read(&mut ack_size_bytes)
+        .map_err(|err| HandshakeError::IOError(err.to_string()))?;
+    if bytes_read == ack_size_bytes.len() {
+        let ack_size = u16::from_be_bytes([ack_size_bytes[0], ack_size_bytes[1]]);
+        let mut enc_ack_body_bytes = vec![0; ack_size as usize];
         let bytes_read = fd
-            .read(&mut ack_size_bytes)
+            .read(&mut enc_ack_body_bytes)
             .map_err(|err| HandshakeError::IOError(err.to_string()))?;
-        println!("Read bytes: {}", bytes_read);
-        if bytes_read == ack_size_bytes.len() {
-            let read_ack_size = u16::from_be_bytes([ack_size_bytes[0], ack_size_bytes[1]]);
-            read_bytes.extend_from_slice(&ack_size_bytes);
-            println!("ack_size: {}", read_ack_size);
-            ack_size = Some(read_ack_size);
+        if bytes_read == enc_ack_body_bytes.len() {
+            let ack = vec![ack_size_bytes, enc_ack_body_bytes].concat();
+            return Ok(ack);
         }
-        let wait_duration = time::Duration::from_millis(100);
-        thread::sleep(wait_duration);
     }
 
-    Ok(read_bytes)
+    return Err(HandshakeError::IOError(
+        "Could not read from socket the ack message from recipient".into(),
+    ));
 }
 
 /// See RLPx : https://github.com/ethereum/devp2p/blob/master/rlpx.md
 /// See EIP-8 : https://github.com/ethereum/EIPs/blob/master/EIPS/eip-8.md
-pub fn do_rlpx_handshake(recipient_enode: &ENode) -> Result<bool, HandshakeError> {
+pub fn do_rlpx_handshake_as_initiator(recipient_enode: &ENode) -> Result<bool, HandshakeError> {
     let socket = get_socket(&recipient_enode.ip_addr, recipient_enode.port)?;
     let mut stream = TcpStream::connect(socket).unwrap();
     let mut rng = secp256k1::rand::thread_rng();
@@ -99,11 +101,20 @@ pub fn do_rlpx_handshake(recipient_enode: &ENode) -> Result<bool, HandshakeError
     let auth_packet = prepare_eip8_auth_packet(&recipient_pk, &auth_message)?;
 
     let bytes_written = write_packet(&mut stream, &auth_packet)?;
-    println!("bytes_written: {}", bytes_written);
+    if bytes_written != auth_packet.len() {
+        return Err(HandshakeError::IOError("bad bytes_written".into()));
+    }
 
     // Read Ack packet.
-    let ack_packet = read_packet(&mut stream)?;
-    println!("bytes_read: {}", ack_packet.len());
+    let ack_packet = read_ack_packet(&mut stream)?;
 
+    // ack = ack-size || enc-ack-body
+    // ack-size = size of enc-ack-body, encoded as a big-endian 16-bit integer
+    let enc_ack_body = ack_packet[2..].to_owned();
+    let _ack_body = ecies_decrypt(&enc_ack_body)?;
+    // TODO convert arc-body to AckMessage.
+
+    // TODO send hello to recipient
+    // TODO receive hello from recipient
     Ok(false)
 }

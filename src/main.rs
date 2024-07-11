@@ -1,6 +1,9 @@
 use clap::Parser;
 use enode::ENode;
-use rlpx_handshake::do_rlpx_handshake;
+
+// TODO add module 'rlpx' and put all files in it except 'main'
+use rlpx_handshake::do_rlpx_handshake_as_initiator;
+pub mod ack_message;
 pub mod auth_message;
 pub mod ecies;
 pub mod enode;
@@ -18,7 +21,7 @@ fn main() {
     let args = Args::parse();
     let recipient = args.recipient;
     let recipient: ENode = recipient.as_str().try_into().unwrap();
-    let result = do_rlpx_handshake(&recipient);
+    let result = do_rlpx_handshake_as_initiator(&recipient);
     match result {
         Ok(result) => println!(
             "Handshake with {}:{} was successful: {}",
