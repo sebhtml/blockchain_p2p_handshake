@@ -49,8 +49,8 @@ fn prepare_eip8_auth_packet(
     let auth_size = u16::try_from(auth_size).unwrap();
     let auth_size = auth_size.to_be_bytes();
     let enc_auth_body = &ecies_encrypt(
-        sender_ephemeral_sk,
         sender_ephemeral_pk,
+        sender_ephemeral_sk,
         &recipient_static_pk,
         &auth_body,
         &auth_size,
@@ -127,9 +127,11 @@ pub fn do_rlpx_handshake_as_initiator(recipient_enode: &ENode) -> Result<bool, H
 
     // ack = ack-size || enc-ack-body
     // ack-size = size of enc-ack-body, encoded as a big-endian 16-bit integer
-    let auth_data = &ack_packet[0..2];
+    let ack_size = &ack_packet[0..2];
     let enc_ack_body = ack_packet[2..].to_owned();
-    let _ack_body = ecies_decrypt(&enc_ack_body, &auth_data)?;
+
+    #[allow(unused)]
+    let ack_body = ecies_decrypt(&sender_ephemeral_sk, &enc_ack_body, &ack_size)?;
     // TODO convert arc-body to AckMessage.
 
     // TODO send hello to recipient

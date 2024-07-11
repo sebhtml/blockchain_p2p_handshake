@@ -27,6 +27,7 @@ fn ecies_generate_key_material(
 ) -> Result<EciesKeys, HandshakeError> {
     let shared_secret = shared_secret_point(&pk, &sk)[0..32].to_vec();
 
+    // TODO remove unwrap calls.é
     // KDF(k, len): the NIST SP 800-56 Concatenation Key Derivation Function
     let mut shared_secret_derived_key = [0_u8; 32];
     concat_kdf::derive_key_into::<Sha256>(&shared_secret, &[], &mut shared_secret_derived_key)
@@ -41,27 +42,25 @@ fn ecies_generate_key_material(
 /// See https://github.com/ethereum/devp2p/blob/master/rlpx.md
 /// Elliptic Curve Integrated Encryption Scheme
 pub fn ecies_encrypt(
-    initiator_ephemeral_sk: &SecretKey,
     initiator_ephemeral_pk: &PublicKey,
+    initiator_ephemeral_sk: &SecretKey,
     recipient_static_pk: &PublicKey,
     message: &[u8],
     auth_data: &[u8],
 ) -> Result<Vec<u8>, HandshakeError> {
     let keys = ecies_generate_key_material(recipient_static_pk, initiator_ephemeral_sk)?;
-    let enc_key = &keys.enc_key;
-    let mac_key = &keys.mac_key;
-    // AES(k, iv, m): the AES-128 encryption function in CTR mode.
     let iv: [u8; ECIES_IV_LEN] = (0..ECIES_AES_KEY_LEN)
         .map(|_| rand::random::<u8>())
         .collect::<Vec<_>>()
         .try_into()
         .unwrap();
-    let mut cipher = Ctr128BE::<Aes128>::new(enc_key.into(), &iv.into());
+    // AES(k, iv, m): the AES-128 encryption function in CTR mode.
+    let mut cipher = Ctr128BE::<Aes128>::new(&keys.enc_key.into(), &iv.into());
     let mut encrypted_message = message.to_vec();
     cipher.apply_keystream(&mut encrypted_message);
 
     // MAC(k, m): HMAC using the SHA-256 hash function.
-    let mut hmac = Hmac::<Sha256>::new_from_slice(&mac_key).unwrap();
+    let mut hmac = Hmac::<Sha256>::new_from_slice(&keys.mac_key).unwrap();
     hmac.update(&iv);
     hmac.update(&encrypted_message);
     hmac.update(auth_data);
@@ -77,6 +76,7 @@ pub fn ecies_encrypt(
 }
 
 pub fn ecies_decrypt(
+    initiator_ephemeral_sk: &SecretKey,
     ecies_encrypted_message: &[u8],
     auth_data: &[u8],
 ) -> Result<Vec<u8>, HandshakeError> {
@@ -84,6 +84,7 @@ pub fn ecies_decrypt(
 
     let recipient_ephemeral_pk = &ecies_encrypted_message[offset..ECIES_EPHEMERAL_PK_LEN];
     offset += recipient_ephemeral_pk.len();
+    let recipient_ephemeral_pk = PublicKey::from_slice(recipient_ephemeral_pk).unwrap();
 
     let iv = &ecies_encrypted_message[offset..(offset + ECIES_IV_LEN)];
     offset += iv.len();
@@ -92,22 +93,32 @@ pub fn ecies_decrypt(
         &ecies_encrypted_message[offset..ecies_encrypted_message.len() - ECIES_TAG_LEN];
     offset += encrypted_message.len();
 
-    let tag = &ecies_encrypted_message[offset..offset + ECIES_TAG_LEN];
+    let message_tag = &ecies_encrypted_message[offset..offset + ECIES_TAG_LEN];
 
     // TODO
 
-    println!(
-        "TODO must decrypt encrypted_message of length {}",
-        encrypted_message.len()
-    );
+    let keys = ecies_generate_key_material(&recipient_ephemeral_pk, initiator_ephemeral_sk)?;
 
-    println!("recipient_ephemeral_pk {}", recipient_ephemeral_pk.len());
+    // TODO group the AES cipher creation and use in a fn.
+    let mut cipher = Ctr128BE::<Aes128>::new(&keys.enc_key.into(), iv.into());
+    let mut decrypted_message = encrypted_message.to_vec();
+    cipher.apply_keystream(&mut decrypted_message);
 
-    println!("iv {}", iv.len());
+    // TODO don't repeat HMAC.
+    // MAC(k, m): HMAC using the SHA-256 hash function.
+    let mut hmac = Hmac::<Sha256>::new_from_slice(&keys.mac_key).unwrap();
+    hmac.update(&iv);
+    hmac.update(&encrypted_message);
+    hmac.update(auth_data);
 
-    println!("encrypted_message {}", encrypted_message.len());
+    let tag = hmac.finalize().into_bytes().to_vec();
+    if &tag != message_tag {
+        println!("message_tag {:?}", message_tag);
+        println!("tag {:?}", tag);
 
-    println!("tag {}", tag.len());
+        //return Err(HandshakeError::HmacValidationFailure);
+    }
 
-    Ok(vec![])
+    println!("Successfully decrypted {} bytes", decrypted_message.len());
+    Ok(decrypted_message)
 }
