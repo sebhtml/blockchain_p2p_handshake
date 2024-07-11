@@ -43,9 +43,7 @@ pub fn ecies_encrypt(
     cipher.apply_keystream(&mut encrypted_message);
 
     // MAC(k, m): HMAC using the SHA-256 hash function.
-    let mac_key = Sha256::digest(&shared_secret_derived_key[16..32]);
-
-    // TODO fix HMAC and check HMAC in geth.
+    let mac_key = Sha256::digest(&shared_secret_derived_key[16..32]).to_vec();
     let mut hmac = Hmac::<Sha256>::new_from_slice(&mac_key).unwrap();
     hmac.update(&initialization_vector);
     hmac.update(&encrypted_message);
@@ -56,7 +54,6 @@ pub fn ecies_encrypt(
         ephemeral_pk.to_vec(),
         initialization_vector.to_vec(),
         encrypted_message,
-        auth_data.to_vec(),
         hmac_tag,
     ]
     .concat())
