@@ -1,5 +1,3 @@
-// TODO write it in Docker
-
 use clap::Parser;
 use enode::ENode;
 use rlpx_handshake::do_rlpx_handshake;

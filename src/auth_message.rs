@@ -18,23 +18,23 @@ impl AuthMessage {
     ) -> Result<AuthMessage, HandshakeError> {
         let auth_vsn = 4;
 
-        let nonce: Vec<u8> = (0..32).map(|_| rand::random::<u8>()).collect();
+        // TODO don't use unwrap.
+        let nonce: [u8; 32] = (0..32)
+            .map(|_| rand::random::<u8>())
+            .collect::<Vec<_>>()
+            .try_into()
+            .unwrap();
 
         let shared_secret = SharedSecret::new(&recipient_pk, &initiator_sk)
             .secret_bytes()
             .to_vec();
-        // TODO send the nonce to the context directly
-        let msg: Vec<u8> = shared_secret
-            .iter()
-            .zip(nonce.iter())
-            .map(|(&x1, &x2)| x1 ^ x2)
-            .collect();
 
-        let msg: [u8; 32] = msg.try_into().unwrap();
+        let msg: [u8; 32] = shared_secret.try_into().unwrap();
         let msg = Message::from_digest(msg);
 
         let context = Secp256k1::new();
-        let recoverable_signature = context.sign_ecdsa_recoverable(&msg, &initiator_sk);
+        let recoverable_signature =
+            context.sign_ecdsa_recoverable_with_noncedata(&msg, &initiator_sk, &nonce);
         let (recovery_id, signature_bytes) = recoverable_signature.serialize_compact();
         let recovery_id = u8::try_from(recovery_id.to_i32()).unwrap();
         let signature = vec![signature_bytes.to_vec(), vec![recovery_id]].concat();
@@ -42,7 +42,7 @@ impl AuthMessage {
         let auth = AuthMessage {
             signature,
             initiator_pub_key: initiator_pk.serialize_uncompressed()[1..].to_vec(),
-            nonce,
+            nonce: nonce.to_vec(),
             version: auth_vsn,
         };
         println!("initiator_pk len: {}", auth.initiator_pub_key.len());

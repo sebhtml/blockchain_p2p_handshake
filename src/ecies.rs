@@ -5,7 +5,7 @@ use ctr::Ctr128BE;
 use hmac::Hmac;
 use hmac::Mac;
 use secp256k1::ecdh::shared_secret_point;
-use secp256k1::{ecdh::SharedSecret, PublicKey, Secp256k1, SecretKey};
+use secp256k1::{PublicKey, Secp256k1, SecretKey};
 use sha2::Digest;
 use sha2::Sha256;
 

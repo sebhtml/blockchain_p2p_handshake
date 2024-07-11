@@ -63,6 +63,9 @@ fn write_packet(fd: &mut impl Write, packet: &[u8]) -> Result<usize, HandshakeEr
 fn read_packet(fd: &mut impl Read) -> Result<Vec<u8>, HandshakeError> {
     let mut ack_size: Option<u16> = None;
     let mut read_bytes = vec![];
+
+    // Do busy polling.
+    // TODO use select() to poll instead or tokio or whatnot.
     while ack_size == None {
         let mut ack_size_bytes = vec![0; 2];
         let bytes_read = fd
