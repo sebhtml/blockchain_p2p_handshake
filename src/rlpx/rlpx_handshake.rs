@@ -1,5 +1,5 @@
 use rand::Rng;
-use secp256k1::{generate_keypair, PublicKey};
+use secp256k1::{generate_keypair, PublicKey, SecretKey};
 use std::{
     io::{Read, Write},
     net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, TcpStream},
@@ -29,6 +29,8 @@ fn get_socket(ip_address: &str, port: u16) -> Result<SocketAddr, HandshakeError>
 }
 
 fn prepare_auth_packet(
+    initiator_ephemeral_sk: &SecretKey,
+    initiator_ephemeral_pk: &PublicKey,
     recipient_static_pk: &PublicKey,
     auth_message: &AuthMessage,
 ) -> Result<Vec<u8>, HandshakeError> {
@@ -45,7 +47,14 @@ fn prepare_auth_packet(
     let auth_size: usize = ECIES_PUBK_LEN + ECIES_IV_LEN + auth_body.len() + ECIES_TAG_LEN;
     let auth_size = u16::try_from(auth_size).unwrap();
     let auth_size = auth_size.to_be_bytes();
-    let enc_auth_body = &ecies_encrypt(&recipient_static_pk, &auth_body, &auth_size).unwrap();
+    let enc_auth_body = &ecies_encrypt(
+        initiator_ephemeral_pk,
+        initiator_ephemeral_sk,
+        &recipient_static_pk,
+        &auth_body,
+        &auth_size,
+    )
+    .unwrap();
 
     // Make auth-packet
     let auth_packet = [&auth_size, enc_auth_body.as_slice()].concat();
@@ -87,11 +96,17 @@ fn read_ack_packet(fd: &mut impl Read) -> Result<Vec<u8>, HandshakeError> {
 }
 
 /// See RLPx : https://github.com/ethereum/devp2p/blob/master/rlpx.md
-pub fn do_rlpx_handshake_as_initiator(recipient_enode: &ENode) -> Result<bool, HandshakeError> {
+pub fn do_rlpx_handshake_as_initiator(
+    initiator_static_sk: &SecretKey,
+    initiator_static_pk: &PublicKey,
+    recipient_enode: &ENode,
+) -> Result<bool, HandshakeError> {
     let socket = get_socket(&recipient_enode.ip_addr, recipient_enode.port)?;
     let mut stream = TcpStream::connect(socket).unwrap();
     let mut rng = secp256k1::rand::thread_rng();
-    let (initiator_static_sk, initiator_static_pk) = generate_keypair(&mut rng);
+
+    let (initiator_ephemeral_sk, initiator_ephemeral_pk) = generate_keypair(&mut rng);
+
     let recipient_static_pk: PublicKey = recipient_enode.try_into()?;
 
     // Generate auth packet.
@@ -100,7 +115,12 @@ pub fn do_rlpx_handshake_as_initiator(recipient_enode: &ENode) -> Result<bool, H
         &initiator_static_pk,
         &recipient_static_pk,
     )?;
-    let auth_packet = prepare_auth_packet(&recipient_static_pk, &auth_message)?;
+    let auth_packet = prepare_auth_packet(
+        &initiator_ephemeral_sk,
+        &initiator_ephemeral_pk,
+        &recipient_static_pk,
+        &auth_message,
+    )?;
 
     let bytes_written = write_packet(&mut stream, &auth_packet)?;
     if bytes_written != auth_packet.len() {

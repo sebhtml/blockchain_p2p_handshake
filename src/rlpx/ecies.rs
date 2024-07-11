@@ -5,7 +5,6 @@ use ctr::Ctr128BE;
 use hmac::Hmac;
 use hmac::Mac;
 use secp256k1::ecdh::shared_secret_point;
-use secp256k1::Secp256k1;
 use secp256k1::{PublicKey, SecretKey};
 use sha2::Digest;
 use sha2::Sha256;
@@ -71,14 +70,12 @@ fn aes_128_ctr_128(key: &[u8], iv: &[u8], msg: &[u8]) -> Vec<u8> {
 /// Elliptic Curve Integrated Encryption Scheme
 /// See https://github.com/ethereum/devp2p/blob/master/rlpx.md
 pub fn ecies_encrypt(
+    pk: &PublicKey,
+    sk: &SecretKey,
     recipient_pubk: &PublicKey,
     message: &[u8],
     auth_data: &[u8],
 ) -> Result<Vec<u8>, HandshakeError> {
-    let context = Secp256k1::new();
-    let mut rng = secp256k1::rand::thread_rng();
-    let sk = SecretKey::new(&mut rng);
-    let pk = PublicKey::from_secret_key(&context, &sk);
     let keys = ecies_generate_key_material(recipient_pubk, &sk)?;
 
     let iv: [u8; ECIES_IV_LEN] = (0..ECIES_AES_KEY_LEN)
