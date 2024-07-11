@@ -12,6 +12,7 @@ use super::{
     auth_message::AuthMessage,
     ecies::{ecies_encrypt, ECIES_IV_LEN, ECIES_PUBK_LEN, ECIES_TAG_LEN},
     enode::ENode,
+    frame::generate_frame,
     handshake_error::HandshakeError,
     nonce::make_nonce,
     secrets::{EphemeralSecrets, FrameSecrets},
@@ -153,11 +154,23 @@ pub fn do_rlpx_handshake_as_initiator(
     );
 
     // TODO send hello to recipient
-    println!("Got shared secrets.");
-    let _frame_secrets =
+    let frame_secrets =
         FrameSecrets::make_nonce_secrets(&initiator_nonce, &ephemeral_secrets.ephemeral_key);
 
-    // TODO receive hello from recipient
+    // TODO add a struct Frame
+    let hello = generate_frame(&[], "Hello".as_bytes(), &frame_secrets);
+
+    let bytes_written = write_packet(&mut stream, &hello)?;
+    if bytes_written != hello.len() {
+        return Err(HandshakeError::IOError("bad bytes_written".into()));
+    }
+
+    // TODO receive hello response from recipient
+    // Read hello response packet.
+    //let hello_response = read_ack_packet(&mut stream)?;
+    //println!("hello_response has len {}", hello_response.len());
+
+    println!("Got ephemeral secrets");
 
     Ok(ephemeral_secrets)
 }
