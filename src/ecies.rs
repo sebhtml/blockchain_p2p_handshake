@@ -58,6 +58,15 @@ fn generate_hmac_tag(
     Ok(tag)
 }
 
+/// AES(k, iv, m): the AES-128 encryption function in CTR mode.
+/// See https://github.com/ethereum/devp2p/blob/master/rlpx.md
+fn aes_128_ctr_128(key: &[u8], iv: &[u8], msg: &[u8]) -> Vec<u8> {
+    let mut cipher = Ctr128BE::<Aes128>::new(key.into(), iv.into());
+    let mut decrypted_message = msg.to_vec();
+    cipher.apply_keystream(&mut decrypted_message);
+    decrypted_message
+}
+
 /// Elliptic Curve Integrated Encryption Scheme
 /// See https://github.com/ethereum/devp2p/blob/master/rlpx.md
 pub fn ecies_encrypt(
@@ -75,10 +84,8 @@ pub fn ecies_encrypt(
         .collect::<Vec<_>>()
         .try_into()
         .unwrap();
-    // AES(k, iv, m): the AES-128 encryption function in CTR mode.
-    let mut cipher = Ctr128BE::<Aes128>::new(&keys.enc_key.into(), &iv.into());
-    let mut encrypted_message = message.to_vec();
-    cipher.apply_keystream(&mut encrypted_message);
+
+    let encrypted_message = aes_128_ctr_128(&keys.enc_key, &iv, &message);
 
     let tag = generate_hmac_tag(&keys.mac_key, &iv, &encrypted_message, auth_data)?;
 
@@ -104,17 +111,11 @@ pub fn ecies_decrypt(
     let keys = ecies_generate_key_material(&recipient_ephemeral_pk, sk)?;
 
     let tag = generate_hmac_tag(&keys.mac_key, &iv, &encrypted_message, auth_data)?;
-
     if &tag != hmac_tag {
         return Err(HandshakeError::HmacValidationFailure);
     }
 
-    // TODO group the AES cipher creation and use in a fn.
-    let mut cipher = Ctr128BE::<Aes128>::new(&keys.enc_key.into(), iv.into());
-    let mut decrypted_message = encrypted_message.to_vec();
-    cipher.apply_keystream(&mut decrypted_message);
-
-    println!("Successfully decrypted {} bytes", decrypted_message.len());
+    let decrypted_message = aes_128_ctr_128(&keys.enc_key, &iv, &encrypted_message);
 
     Ok(decrypted_message)
 }
