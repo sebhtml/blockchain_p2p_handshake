@@ -10,24 +10,19 @@ pub const NONCE_LENGTH: usize = 32;
 pub struct AuthMessage {
     pub sig: Vec<u8>,
     pub initiator_pubk: Vec<u8>,
+    // TODO use [u8; 32] for nonce
     pub initiator_nonce: Vec<u8>,
     pub auth_vsn: u32,
 }
 
 impl AuthMessage {
     pub fn try_new(
+        initiator_nonce: &[u8; 32],
         initiator_sk: &SecretKey,
         initiator_pk: &PublicKey,
         recipient_pk: &PublicKey,
     ) -> Result<AuthMessage, HandshakeError> {
         let auth_vsn = 4;
-
-        // TODO don't use unwrap.
-        let nonce: [u8; NONCE_LENGTH] = (0..NONCE_LENGTH)
-            .map(|_| rand::random::<u8>())
-            .collect::<Vec<_>>()
-            .try_into()
-            .unwrap();
 
         let shared_secret = SharedSecret::new(&recipient_pk, &initiator_sk)
             .secret_bytes()
@@ -38,7 +33,7 @@ impl AuthMessage {
 
         let context = Secp256k1::new();
         let recoverable_signature =
-            context.sign_ecdsa_recoverable_with_noncedata(&msg, &initiator_sk, &nonce);
+            context.sign_ecdsa_recoverable_with_noncedata(&msg, &initiator_sk, initiator_nonce);
         let (recovery_id, signature_bytes) = recoverable_signature.serialize_compact();
         let recovery_id = u8::try_from(recovery_id.to_i32()).unwrap();
         let signature = vec![signature_bytes.to_vec(), vec![recovery_id]].concat();
@@ -46,7 +41,7 @@ impl AuthMessage {
         let auth = AuthMessage {
             sig: signature,
             initiator_pubk: initiator_pk.serialize_uncompressed()[1..].to_vec(),
-            initiator_nonce: nonce.to_vec(),
+            initiator_nonce: initiator_nonce.to_vec(),
             auth_vsn,
         };
 

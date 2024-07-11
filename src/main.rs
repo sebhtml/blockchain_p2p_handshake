@@ -21,9 +21,9 @@ fn main() {
     let result =
         do_rlpx_handshake_as_initiator(&initiator_static_sk, &initiator_static_pk, &recipient);
     match result {
-        Ok(result) => println!(
-            "Handshake with {}:{} was successful: {}",
-            recipient.ip_addr, recipient.port, result
+        Ok(_ephemeral_secrets) => println!(
+            "Handshake with {}:{} was successful",
+            recipient.ip_addr, recipient.port,
         ),
         Err(err) => println!("Handshake failed with error {}", err),
     }

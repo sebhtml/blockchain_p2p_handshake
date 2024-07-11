@@ -13,6 +13,8 @@ use super::{
     ecies::{ecies_encrypt, ECIES_IV_LEN, ECIES_PUBK_LEN, ECIES_TAG_LEN},
     enode::ENode,
     handshake_error::HandshakeError,
+    nonce::make_nonce,
+    secrets::{EphemeralSecrets, FrameSecrets},
 };
 
 fn get_socket(ip_address: &str, port: u16) -> Result<SocketAddr, HandshakeError> {
@@ -100,7 +102,7 @@ pub fn do_rlpx_handshake_as_initiator(
     initiator_static_sk: &SecretKey,
     initiator_static_pk: &PublicKey,
     recipient_enode: &ENode,
-) -> Result<bool, HandshakeError> {
+) -> Result<EphemeralSecrets, HandshakeError> {
     let socket = get_socket(&recipient_enode.ip_addr, recipient_enode.port)?;
     let mut stream = TcpStream::connect(socket).unwrap();
     let mut rng = secp256k1::rand::thread_rng();
@@ -108,11 +110,13 @@ pub fn do_rlpx_handshake_as_initiator(
     let (initiator_ephemeral_sk, initiator_ephemeral_pk) = generate_keypair(&mut rng);
 
     let recipient_static_pk: PublicKey = recipient_enode.try_into()?;
+    let initiator_nonce = make_nonce();
 
     // Generate auth packet.
     let auth_message = AuthMessage::try_new(
-        &initiator_static_sk,
-        &initiator_static_pk,
+        &initiator_nonce,
+        initiator_static_sk,
+        initiator_static_pk,
         &recipient_static_pk,
     )?;
     let auth_packet = prepare_auth_packet(
@@ -138,10 +142,22 @@ pub fn do_rlpx_handshake_as_initiator(
 
     // Convert arc-body to AckMessage.
     let ack = AckMessage::from_rlp_list(&ack_body)?;
-    println!("Got ack object: {:?}", ack);
+    let remote_ephemeral_pk = PublicKey::from_slice(&ack.recipient_ephemeral_pubk).unwrap();
+
+    // Generate secrets.
+    let ephemeral_secrets = EphemeralSecrets::new(
+        initiator_static_sk,
+        &recipient_static_pk,
+        &initiator_ephemeral_sk,
+        &remote_ephemeral_pk,
+    );
 
     // TODO send hello to recipient
+    println!("Got shared secrets.");
+    let _frame_secrets =
+        FrameSecrets::make_nonce_secrets(&initiator_nonce, &ephemeral_secrets.ephemeral_key);
 
     // TODO receive hello from recipient
-    Ok(false)
+
+    Ok(ephemeral_secrets)
 }

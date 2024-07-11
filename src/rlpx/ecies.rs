@@ -18,7 +18,7 @@ pub const ECIES_IV_LEN: usize = 16;
 pub const ECIES_TAG_LEN: usize = 32;
 
 struct EciesKeys {
-    enc_key: [u8; ECIES_AES_KEY_LEN],
+    aes_key: [u8; ECIES_AES_KEY_LEN],
     mac_key: Vec<u8>,
 }
 
@@ -34,10 +34,10 @@ fn ecies_generate_key_material(
     let mut shared_secret_derived_key = [0_u8; 32];
     concat_kdf::derive_key_into::<Sha256>(&shared_secret, &[], &mut shared_secret_derived_key)
         .unwrap();
-    let enc_key: [u8; ECIES_AES_KEY_LEN] = shared_secret_derived_key[0..16].try_into().unwrap();
+    let aes_key: [u8; ECIES_AES_KEY_LEN] = shared_secret_derived_key[0..16].try_into().unwrap();
     let mac_key = Sha256::digest(&shared_secret_derived_key[16..32]).to_vec();
 
-    let keys = EciesKeys { enc_key, mac_key };
+    let keys = EciesKeys { aes_key, mac_key };
     Ok(keys)
 }
 
@@ -84,7 +84,7 @@ pub fn ecies_encrypt(
         .try_into()
         .unwrap();
 
-    let encrypted_message = aes_128_ctr_128(&keys.enc_key, &iv, &message);
+    let encrypted_message = aes_128_ctr_128(&keys.aes_key, &iv, &message);
 
     let tag = generate_hmac_tag(&keys.mac_key, &iv, &encrypted_message, auth_data)?;
 
@@ -114,7 +114,7 @@ pub fn ecies_decrypt(
         return Err(HandshakeError::HmacValidationFailure);
     }
 
-    let decrypted_message = aes_128_ctr_128(&keys.enc_key, &iv, &encrypted_message);
+    let decrypted_message = aes_128_ctr_128(&keys.aes_key, &iv, &encrypted_message);
 
     Ok(decrypted_message)
 }
