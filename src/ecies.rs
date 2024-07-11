@@ -5,6 +5,7 @@ use ctr::Ctr128BE;
 use hmac::Hmac;
 use hmac::Mac;
 use secp256k1::ecdh::shared_secret_point;
+use secp256k1::Secp256k1;
 use secp256k1::{PublicKey, SecretKey};
 use sha2::Digest;
 use sha2::Sha256;
@@ -12,8 +13,9 @@ use sha2::Sha256;
 use crate::handshake_error::HandshakeError;
 
 pub const ECIES_EPHEMERAL_PK_LEN: usize = 65;
-pub const ECIES_AES_KEY_LEN: usize = 128 / u8::BITS as usize;
-pub const ECIES_IV_LEN: usize = ECIES_AES_KEY_LEN;
+pub const ECIES_AES_KEY_LEN: usize = 16;
+pub const ECIES_MAC_LEN: usize = 16;
+pub const ECIES_IV_LEN: usize = 16;
 pub const ECIES_TAG_LEN: usize = 32;
 
 struct EciesKeys {
@@ -42,13 +44,15 @@ fn ecies_generate_key_material(
 /// See https://github.com/ethereum/devp2p/blob/master/rlpx.md
 /// Elliptic Curve Integrated Encryption Scheme
 pub fn ecies_encrypt(
-    initiator_ephemeral_pk: &PublicKey,
-    initiator_ephemeral_sk: &SecretKey,
-    recipient_static_pk: &PublicKey,
+    recipient_pubk: &PublicKey,
     message: &[u8],
     auth_data: &[u8],
 ) -> Result<Vec<u8>, HandshakeError> {
-    let keys = ecies_generate_key_material(recipient_static_pk, initiator_ephemeral_sk)?;
+    let context = Secp256k1::new();
+    let mut rng = secp256k1::rand::thread_rng();
+    let sk = SecretKey::new(&mut rng);
+    let pk = PublicKey::from_secret_key(&context, &sk);
+    let keys = ecies_generate_key_material(recipient_pubk, &sk)?;
     let iv: [u8; ECIES_IV_LEN] = (0..ECIES_AES_KEY_LEN)
         .map(|_| rand::random::<u8>())
         .collect::<Vec<_>>()
@@ -67,7 +71,7 @@ pub fn ecies_encrypt(
     let tag = hmac.finalize().into_bytes().to_vec();
 
     Ok(vec![
-        initiator_ephemeral_pk.serialize_uncompressed().to_vec(),
+        pk.serialize_uncompressed().to_vec(),
         iv.to_vec(),
         encrypted_message,
         tag,
@@ -76,49 +80,40 @@ pub fn ecies_encrypt(
 }
 
 pub fn ecies_decrypt(
-    initiator_ephemeral_sk: &SecretKey,
+    sk: &SecretKey,
     ecies_encrypted_message: &[u8],
     auth_data: &[u8],
 ) -> Result<Vec<u8>, HandshakeError> {
-    let mut offset = 0;
+    let (recipient_ephemeral_pk, rest) = ecies_encrypted_message.split_at(ECIES_EPHEMERAL_PK_LEN);
+    let (iv, rest) = rest.split_at(ECIES_IV_LEN);
+    let (encrypted_message, hmac_tag) = rest.split_at(rest.len() - ECIES_TAG_LEN);
 
-    let recipient_ephemeral_pk = &ecies_encrypted_message[offset..ECIES_EPHEMERAL_PK_LEN];
-    offset += recipient_ephemeral_pk.len();
+    // MAC(k, m): HMAC using the SHA-256 hash function.
     let recipient_ephemeral_pk = PublicKey::from_slice(recipient_ephemeral_pk).unwrap();
-
-    let iv = &ecies_encrypted_message[offset..(offset + ECIES_IV_LEN)];
-    offset += iv.len();
-
-    let encrypted_message =
-        &ecies_encrypted_message[offset..ecies_encrypted_message.len() - ECIES_TAG_LEN];
-    offset += encrypted_message.len();
-
-    let message_tag = &ecies_encrypted_message[offset..offset + ECIES_TAG_LEN];
-
-    // TODO
-
-    let keys = ecies_generate_key_material(&recipient_ephemeral_pk, initiator_ephemeral_sk)?;
-
-    // TODO group the AES cipher creation and use in a fn.
-    let mut cipher = Ctr128BE::<Aes128>::new(&keys.enc_key.into(), iv.into());
-    let mut decrypted_message = encrypted_message.to_vec();
-    cipher.apply_keystream(&mut decrypted_message);
+    let keys = ecies_generate_key_material(&recipient_ephemeral_pk, sk)?;
 
     // TODO don't repeat HMAC.
-    // MAC(k, m): HMAC using the SHA-256 hash function.
+    println!("auth_data {:?}", auth_data);
     let mut hmac = Hmac::<Sha256>::new_from_slice(&keys.mac_key).unwrap();
     hmac.update(&iv);
     hmac.update(&encrypted_message);
     hmac.update(auth_data);
 
     let tag = hmac.finalize().into_bytes().to_vec();
-    if &tag != message_tag {
-        println!("message_tag {:?}", message_tag);
-        println!("tag {:?}", tag);
+    if &tag != hmac_tag {
+        //println!("message_tag {:?}", message_tag);
+        //println!("tag {:?}", tag);
 
-        //return Err(HandshakeError::HmacValidationFailure);
+        return Err(HandshakeError::HmacValidationFailure);
     }
 
+    // TODO group the AES cipher creation and use in a fn.
+    let mut cipher = Ctr128BE::<Aes128>::new(&keys.enc_key.into(), iv.into());
+    let mut decrypted_message = encrypted_message.to_vec();
+    cipher.apply_keystream(&mut decrypted_message);
+
     println!("Successfully decrypted {} bytes", decrypted_message.len());
+    //println!("decrypted_message {:?}", decrypted_message);
+
     Ok(decrypted_message)
 }
