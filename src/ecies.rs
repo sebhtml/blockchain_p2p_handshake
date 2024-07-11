@@ -16,6 +16,28 @@ pub const ECIES_AES_KEY_LEN: usize = 128 / u8::BITS as usize;
 pub const ECIES_IV_LEN: usize = ECIES_AES_KEY_LEN;
 pub const ECIES_TAG_LEN: usize = 32;
 
+struct EciesKeys {
+    enc_key: [u8; ECIES_AES_KEY_LEN],
+    mac_key: Vec<u8>,
+}
+
+fn ecies_generate_key_material(
+    pk: &PublicKey,
+    sk: &SecretKey,
+) -> Result<EciesKeys, HandshakeError> {
+    let shared_secret = shared_secret_point(&pk, &sk)[0..32].to_vec();
+
+    // KDF(k, len): the NIST SP 800-56 Concatenation Key Derivation Function
+    let mut shared_secret_derived_key = [0_u8; 32];
+    concat_kdf::derive_key_into::<Sha256>(&shared_secret, &[], &mut shared_secret_derived_key)
+        .unwrap();
+    let enc_key: [u8; ECIES_AES_KEY_LEN] = shared_secret_derived_key[0..16].try_into().unwrap();
+    let mac_key = Sha256::digest(&shared_secret_derived_key[16..32]).to_vec();
+
+    let keys = EciesKeys { enc_key, mac_key };
+    Ok(keys)
+}
+
 /// See https://github.com/ethereum/devp2p/blob/master/rlpx.md
 /// Elliptic Curve Integrated Encryption Scheme
 pub fn ecies_encrypt(
@@ -25,27 +47,20 @@ pub fn ecies_encrypt(
     message: &[u8],
     auth_data: &[u8],
 ) -> Result<Vec<u8>, HandshakeError> {
-    let shared_secret =
-        shared_secret_point(&recipient_static_pk, &initiator_ephemeral_sk)[0..32].to_vec();
-
-    // KDF(k, len): the NIST SP 800-56 Concatenation Key Derivation Function
-    let mut shared_secret_derived_key = [0_u8; 32];
-    concat_kdf::derive_key_into::<Sha256>(&shared_secret, &[], &mut shared_secret_derived_key)
-        .unwrap();
-    let enc_key: [u8; ECIES_AES_KEY_LEN] = shared_secret_derived_key[0..16].try_into().unwrap();
-
+    let keys = ecies_generate_key_material(recipient_static_pk, initiator_ephemeral_sk)?;
+    let enc_key = &keys.enc_key;
+    let mac_key = &keys.mac_key;
     // AES(k, iv, m): the AES-128 encryption function in CTR mode.
     let iv: [u8; ECIES_IV_LEN] = (0..ECIES_AES_KEY_LEN)
         .map(|_| rand::random::<u8>())
         .collect::<Vec<_>>()
         .try_into()
         .unwrap();
-    let mut cipher = Ctr128BE::<Aes128>::new(&enc_key.into(), &iv.into());
+    let mut cipher = Ctr128BE::<Aes128>::new(enc_key.into(), &iv.into());
     let mut encrypted_message = message.to_vec();
     cipher.apply_keystream(&mut encrypted_message);
 
     // MAC(k, m): HMAC using the SHA-256 hash function.
-    let mac_key = Sha256::digest(&shared_secret_derived_key[16..32]).to_vec();
     let mut hmac = Hmac::<Sha256>::new_from_slice(&mac_key).unwrap();
     hmac.update(&iv);
     hmac.update(&encrypted_message);
