@@ -1,5 +1,5 @@
 use rand::Rng;
-use secp256k1::{generate_keypair, PublicKey};
+use secp256k1::{generate_keypair, PublicKey, Secp256k1, SecretKey};
 use std::{
     io::{Read, Write},
     net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, TcpStream},
@@ -27,6 +27,8 @@ fn get_socket(ip_address: &str, port: u16) -> Result<SocketAddr, HandshakeError>
 }
 
 fn prepare_eip8_auth_packet(
+    sender_ephemeral_sk: &SecretKey,
+    sender_ephemeral_pk: &PublicKey,
     recipient_pk: &PublicKey,
     auth_message: &AuthMessage,
 ) -> Result<Vec<u8>, HandshakeError> {
@@ -46,7 +48,14 @@ fn prepare_eip8_auth_packet(
      + 32; // message authentication code (MAC) - note that MAC key and HMAC tag have the same length.
     let auth_size = u16::try_from(auth_size).unwrap();
     let auth_size = auth_size.to_be_bytes();
-    let enc_auth_body = &ecies_encrypt(&recipient_pk, &auth_body, &auth_size).unwrap();
+    let enc_auth_body = &ecies_encrypt(
+        sender_ephemeral_sk,
+        sender_ephemeral_pk,
+        &recipient_pk,
+        &auth_body,
+        &auth_size,
+    )
+    .unwrap();
 
     // Make auth-packet
     let auth_packet = [&auth_size, enc_auth_body.as_slice()].concat();
@@ -98,7 +107,15 @@ pub fn do_rlpx_handshake_as_initiator(recipient_enode: &ENode) -> Result<bool, H
 
     // Generate auth packet.
     let auth_message = AuthMessage::try_new(&initiator_sk, &initiator_pk, &recipient_pk)?;
-    let auth_packet = prepare_eip8_auth_packet(&recipient_pk, &auth_message)?;
+    let context = Secp256k1::new();
+    let sender_ephemeral_sk = SecretKey::new(&mut rng);
+    let sender_ephemeral_pk = PublicKey::from_secret_key(&context, &sender_ephemeral_sk);
+    let auth_packet = prepare_eip8_auth_packet(
+        &sender_ephemeral_sk,
+        &sender_ephemeral_pk,
+        &recipient_pk,
+        &auth_message,
+    )?;
 
     let bytes_written = write_packet(&mut stream, &auth_packet)?;
     if bytes_written != auth_packet.len() {

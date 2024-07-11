@@ -5,7 +5,7 @@ use ctr::Ctr128BE;
 use hmac::Hmac;
 use hmac::Mac;
 use secp256k1::ecdh::shared_secret_point;
-use secp256k1::{PublicKey, Secp256k1, SecretKey};
+use secp256k1::{PublicKey, SecretKey};
 use sha2::Digest;
 use sha2::Sha256;
 
@@ -14,15 +14,14 @@ use crate::handshake_error::HandshakeError;
 /// See https://github.com/ethereum/devp2p/blob/master/rlpx.md
 /// Elliptic Curve Integrated Encryption Scheme
 pub fn ecies_encrypt(
-    pub_key: &PublicKey,
+    sender_ephemeral_sk: &SecretKey,
+    sender_ephemeral_pk: &PublicKey,
+    receiver_static_pk: &PublicKey,
     message: &[u8],
     auth_data: &[u8],
 ) -> Result<Vec<u8>, HandshakeError> {
-    let mut rng = secp256k1::rand::thread_rng();
-    let ephemeral_sk = SecretKey::new(&mut rng);
-    let context = Secp256k1::new();
-    let ephemeral_pk = PublicKey::from_secret_key(&context, &ephemeral_sk).serialize_uncompressed();
-    let shared_secret = shared_secret_point(&pub_key, &ephemeral_sk)[0..32].to_vec();
+    let shared_secret =
+        shared_secret_point(&receiver_static_pk, &sender_ephemeral_sk)[0..32].to_vec();
 
     // KDF(k, len): the NIST SP 800-56 Concatenation Key Derivation Function
     let mut shared_secret_derived_key = [0_u8; 32];
@@ -51,7 +50,7 @@ pub fn ecies_encrypt(
     let hmac_tag = hmac.finalize().into_bytes().to_vec();
 
     Ok(vec![
-        ephemeral_pk.to_vec(),
+        sender_ephemeral_pk.serialize_uncompressed().to_vec(),
         initialization_vector.to_vec(),
         encrypted_message,
         hmac_tag,
@@ -65,5 +64,6 @@ pub fn ecies_decrypt(encrypted_message: &[u8]) -> Result<Vec<u8>, HandshakeError
         "TODO must decrypt encrypted_message of length {}",
         encrypted_message.len()
     );
+
     Ok(vec![])
 }
