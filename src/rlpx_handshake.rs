@@ -26,8 +26,7 @@ fn get_socket(ip_address: &str, port: u16) -> Result<SocketAddr, HandshakeError>
     Ok(socket)
 }
 
-fn prepare_eip8_auth_packet(
-    initiator_static_pk: &PublicKey,
+fn prepare_auth_packet(
     recipient_static_pk: &PublicKey,
     auth_message: &AuthMessage,
 ) -> Result<Vec<u8>, HandshakeError> {
@@ -40,11 +39,8 @@ fn prepare_eip8_auth_packet(
     let random_bytes: Vec<u8> = vec![0; random_padding];
     let auth_body = [auth_body.to_vec(), random_bytes].concat();
 
-    // Encrypt auth with secp256k1
-    let auth_size: usize = ECIES_EPHEMERAL_PK_LEN // ephemeral public key
-     + ECIES_IV_LEN // initialization vector (iv)
-     + auth_body.len() // encrypted message
-     + ECIES_TAG_LEN; // message authentication code (MAC) - note that MAC key and HMAC tag have the same length.
+    // Encrypt
+    let auth_size: usize = ECIES_EPHEMERAL_PK_LEN + ECIES_IV_LEN + auth_body.len() + ECIES_TAG_LEN;
     let auth_size = u16::try_from(auth_size).unwrap();
     let auth_size = auth_size.to_be_bytes();
     let enc_auth_body = &ecies_encrypt(&recipient_static_pk, &auth_body, &auth_size).unwrap();
@@ -105,8 +101,7 @@ pub fn do_rlpx_handshake_as_initiator(recipient_enode: &ENode) -> Result<bool, H
         &initiator_static_pk,
         &recipient_static_pk,
     )?;
-    let auth_packet =
-        prepare_eip8_auth_packet(&initiator_static_pk, &recipient_static_pk, &auth_message)?;
+    let auth_packet = prepare_auth_packet(&recipient_static_pk, &auth_message)?;
 
     let bytes_written = write_packet(&mut stream, &auth_packet)?;
     if bytes_written != auth_packet.len() {
