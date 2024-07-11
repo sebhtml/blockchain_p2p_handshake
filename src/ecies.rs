@@ -41,8 +41,25 @@ fn ecies_generate_key_material(
     Ok(keys)
 }
 
+/// MAC(k, m): HMAC using the SHA-256 hash function.
 /// See https://github.com/ethereum/devp2p/blob/master/rlpx.md
+fn generate_hmac_tag(
+    mac_key: &[u8],
+    iv: &[u8],
+    encrypted_message: &[u8],
+    auth_data: &[u8],
+) -> Result<Vec<u8>, HandshakeError> {
+    let mut hmac =
+        Hmac::<Sha256>::new_from_slice(mac_key).map_err(|_| HandshakeError::HmacGenerationError)?;
+    hmac.update(&iv);
+    hmac.update(&encrypted_message);
+    hmac.update(auth_data);
+    let tag = hmac.finalize().into_bytes().to_vec();
+    Ok(tag)
+}
+
 /// Elliptic Curve Integrated Encryption Scheme
+/// See https://github.com/ethereum/devp2p/blob/master/rlpx.md
 pub fn ecies_encrypt(
     recipient_pubk: &PublicKey,
     message: &[u8],
@@ -63,12 +80,7 @@ pub fn ecies_encrypt(
     let mut encrypted_message = message.to_vec();
     cipher.apply_keystream(&mut encrypted_message);
 
-    // MAC(k, m): HMAC using the SHA-256 hash function.
-    let mut hmac = Hmac::<Sha256>::new_from_slice(&keys.mac_key).unwrap();
-    hmac.update(&iv);
-    hmac.update(&encrypted_message);
-    hmac.update(auth_data);
-    let tag = hmac.finalize().into_bytes().to_vec();
+    let tag = generate_hmac_tag(&keys.mac_key, &iv, &encrypted_message, auth_data)?;
 
     Ok(vec![
         pk.serialize_uncompressed().to_vec(),
@@ -88,22 +100,12 @@ pub fn ecies_decrypt(
     let (iv, rest) = rest.split_at(ECIES_IV_LEN);
     let (encrypted_message, hmac_tag) = rest.split_at(rest.len() - ECIES_TAG_LEN);
 
-    // MAC(k, m): HMAC using the SHA-256 hash function.
     let recipient_ephemeral_pk = PublicKey::from_slice(recipient_ephemeral_pk).unwrap();
     let keys = ecies_generate_key_material(&recipient_ephemeral_pk, sk)?;
 
-    // TODO don't repeat HMAC.
-    println!("auth_data {:?}", auth_data);
-    let mut hmac = Hmac::<Sha256>::new_from_slice(&keys.mac_key).unwrap();
-    hmac.update(&iv);
-    hmac.update(&encrypted_message);
-    hmac.update(auth_data);
+    let tag = generate_hmac_tag(&keys.mac_key, &iv, &encrypted_message, auth_data)?;
 
-    let tag = hmac.finalize().into_bytes().to_vec();
     if &tag != hmac_tag {
-        //println!("message_tag {:?}", message_tag);
-        //println!("tag {:?}", tag);
-
         return Err(HandshakeError::HmacValidationFailure);
     }
 
@@ -113,7 +115,6 @@ pub fn ecies_decrypt(
     cipher.apply_keystream(&mut decrypted_message);
 
     println!("Successfully decrypted {} bytes", decrypted_message.len());
-    //println!("decrypted_message {:?}", decrypted_message);
 
     Ok(decrypted_message)
 }

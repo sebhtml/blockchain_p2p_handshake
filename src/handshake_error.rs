@@ -10,6 +10,7 @@ pub enum HandshakeError {
     IOError(String),
     Secp256k1Error(String),
     HmacValidationFailure,
+    HmacGenerationError,
     HexError(String),
 }
 
@@ -21,6 +22,7 @@ impl Display for HandshakeError {
             HandshakeError::IOError(err) => write!(f, "IOError: {}", err),
             HandshakeError::BadENodeId => write!(f, "BadENodeId"),
             HandshakeError::HmacValidationFailure => write!(f, "HmacValidationFailure"),
+            HandshakeError::HmacGenerationError => write!(f, "HmacGenerationError"),
             HandshakeError::BadENodeIdPubKeyLength => write!(f, "BadENodeIdPubKeyLength"),
             HandshakeError::BadRegex(err) => write!(f, "BadRegex: {}", err),
             HandshakeError::Secp256k1Error(err) => write!(f, "Secp256k1Error: {}", err),
