@@ -12,7 +12,7 @@ use sha2::Sha256;
 
 use crate::handshake_error::HandshakeError;
 
-pub const ECIES_EPHEMERAL_PK_LEN: usize = 65;
+pub const ECIES_PUBK_LEN: usize = 65;
 pub const ECIES_AES_KEY_LEN: usize = 16;
 pub const ECIES_MAC_LEN: usize = 16;
 pub const ECIES_IV_LEN: usize = 16;
@@ -23,14 +23,15 @@ struct EciesKeys {
     mac_key: Vec<u8>,
 }
 
+/// KDF(k, len): the NIST SP 800-56 Concatenation Key Derivation Function
+/// See https://github.com/ethereum/devp2p/blob/master/rlpx.md
 fn ecies_generate_key_material(
     pk: &PublicKey,
     sk: &SecretKey,
 ) -> Result<EciesKeys, HandshakeError> {
     let shared_secret = shared_secret_point(&pk, &sk)[0..32].to_vec();
 
-    // TODO remove unwrap calls.é
-    // KDF(k, len): the NIST SP 800-56 Concatenation Key Derivation Function
+    // TODO remove unwrap calls.
     let mut shared_secret_derived_key = [0_u8; 32];
     concat_kdf::derive_key_into::<Sha256>(&shared_secret, &[], &mut shared_secret_derived_key)
         .unwrap();
@@ -79,6 +80,7 @@ pub fn ecies_encrypt(
     let sk = SecretKey::new(&mut rng);
     let pk = PublicKey::from_secret_key(&context, &sk);
     let keys = ecies_generate_key_material(recipient_pubk, &sk)?;
+
     let iv: [u8; ECIES_IV_LEN] = (0..ECIES_AES_KEY_LEN)
         .map(|_| rand::random::<u8>())
         .collect::<Vec<_>>()
@@ -103,7 +105,7 @@ pub fn ecies_decrypt(
     ecies_encrypted_message: &[u8],
     auth_data: &[u8],
 ) -> Result<Vec<u8>, HandshakeError> {
-    let (recipient_ephemeral_pk, rest) = ecies_encrypted_message.split_at(ECIES_EPHEMERAL_PK_LEN);
+    let (recipient_ephemeral_pk, rest) = ecies_encrypted_message.split_at(ECIES_PUBK_LEN);
     let (iv, rest) = rest.split_at(ECIES_IV_LEN);
     let (encrypted_message, hmac_tag) = rest.split_at(rest.len() - ECIES_TAG_LEN);
 

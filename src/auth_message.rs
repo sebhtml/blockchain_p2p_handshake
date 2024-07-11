@@ -1,13 +1,15 @@
-use crate::handshake_error::HandshakeError;
+use crate::{handshake_error::HandshakeError, NONCE_LENGTH};
 use rlp::RlpStream;
 use secp256k1::{ecdh::SharedSecret, Message, PublicKey, Secp256k1, SecretKey};
 
+/// auth-body = [sig, initiator-pubk, initiator-nonce, auth-vsn, ...]
+/// See https://github.com/ethereum/devp2p/blob/master/rlpx.md
 #[derive(Debug)]
 pub struct AuthMessage {
-    pub signature: Vec<u8>,
-    pub initiator_pub_key: Vec<u8>,
-    pub nonce: Vec<u8>,
-    pub version: u32,
+    pub sig: Vec<u8>,
+    pub initiator_pubk: Vec<u8>,
+    pub initiator_nonce: Vec<u8>,
+    pub auth_vsn: u32,
 }
 
 impl AuthMessage {
@@ -19,7 +21,7 @@ impl AuthMessage {
         let auth_vsn = 4;
 
         // TODO don't use unwrap.
-        let nonce: [u8; 32] = (0..32)
+        let nonce: [u8; NONCE_LENGTH] = (0..NONCE_LENGTH)
             .map(|_| rand::random::<u8>())
             .collect::<Vec<_>>()
             .try_into()
@@ -40,21 +42,21 @@ impl AuthMessage {
         let signature = vec![signature_bytes.to_vec(), vec![recovery_id]].concat();
 
         let auth = AuthMessage {
-            signature,
-            initiator_pub_key: initiator_pk.serialize_uncompressed()[1..].to_vec(),
-            nonce: nonce.to_vec(),
-            version: auth_vsn,
+            sig: signature,
+            initiator_pubk: initiator_pk.serialize_uncompressed()[1..].to_vec(),
+            initiator_nonce: nonce.to_vec(),
+            auth_vsn,
         };
 
         Ok(auth)
     }
 
-    pub fn as_rlp_list(&self) -> Vec<u8> {
+    pub fn into_rlp_list(&self) -> Vec<u8> {
         let mut auth_body = RlpStream::new_list(4);
-        auth_body.append(&self.signature);
-        auth_body.append(&self.initiator_pub_key);
-        auth_body.append(&self.nonce);
-        auth_body.append(&self.version);
+        auth_body.append(&self.sig);
+        auth_body.append(&self.initiator_pubk);
+        auth_body.append(&self.initiator_nonce);
+        auth_body.append(&self.auth_vsn);
         let auth_body = auth_body.out();
         auth_body.to_vec()
     }

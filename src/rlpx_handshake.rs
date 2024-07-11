@@ -7,8 +7,9 @@ use std::{
 };
 
 use crate::{
+    ack_message::AckMessage,
     auth_message::AuthMessage,
-    ecies::{ecies_decrypt, ecies_encrypt, ECIES_EPHEMERAL_PK_LEN, ECIES_IV_LEN, ECIES_TAG_LEN},
+    ecies::{ecies_decrypt, ecies_encrypt, ECIES_IV_LEN, ECIES_PUBK_LEN, ECIES_TAG_LEN},
     enode::ENode,
     handshake_error::HandshakeError,
 };
@@ -31,7 +32,7 @@ fn prepare_auth_packet(
     auth_message: &AuthMessage,
 ) -> Result<Vec<u8>, HandshakeError> {
     // Encode auth with RLP
-    let auth_body = auth_message.as_rlp_list();
+    let auth_body = auth_message.into_rlp_list();
 
     // Add random padding
     let mut rng = rand::thread_rng();
@@ -40,7 +41,7 @@ fn prepare_auth_packet(
     let auth_body = [auth_body.to_vec(), random_bytes].concat();
 
     // Encrypt
-    let auth_size: usize = ECIES_EPHEMERAL_PK_LEN + ECIES_IV_LEN + auth_body.len() + ECIES_TAG_LEN;
+    let auth_size: usize = ECIES_PUBK_LEN + ECIES_IV_LEN + auth_body.len() + ECIES_TAG_LEN;
     let auth_size = u16::try_from(auth_size).unwrap();
     let auth_size = auth_size.to_be_bytes();
     let enc_auth_body = &ecies_encrypt(&recipient_static_pk, &auth_body, &auth_size).unwrap();
@@ -69,8 +70,6 @@ fn read_ack_packet(fd: &mut impl Read) -> Result<Vec<u8>, HandshakeError> {
         .map_err(|err| HandshakeError::IOError(err.to_string()))?;
     if bytes_read == ack_size_bytes.len() {
         let ack_size = u16::from_be_bytes([ack_size_bytes[0], ack_size_bytes[1]]);
-        println!("ack_size_bytes: {:?}", ack_size_bytes);
-        println!("ack_size: {:?}", ack_size);
         let mut enc_ack_body_bytes = vec![0; ack_size as usize];
         let bytes_read = fd
             .read(&mut enc_ack_body_bytes)
@@ -115,9 +114,11 @@ pub fn do_rlpx_handshake_as_initiator(recipient_enode: &ENode) -> Result<bool, H
     // ack-size = size of enc-ack-body, encoded as a big-endian 16-bit integer
     let (ack_size, enc_ack_body) = ack_packet.split_at(2);
 
-    #[allow(unused)]
     let ack_body = ecies_decrypt(&initiator_static_sk, &enc_ack_body, &ack_size)?;
-    // TODO convert arc-body to AckMessage.
+
+    // Convert arc-body to AckMessage.
+    let ack = AckMessage::from_rlp_list(&ack_body)?;
+    println!("Got ack object: {:?}", ack);
 
     // TODO send hello to recipient
     // TODO receive hello from recipient

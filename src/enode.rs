@@ -1,4 +1,4 @@
-use crate::{ecies::ECIES_EPHEMERAL_PK_LEN, handshake_error::HandshakeError};
+use crate::{ecies::ECIES_PUBK_LEN, handshake_error::HandshakeError};
 use regex::Regex;
 use secp256k1::PublicKey;
 
@@ -37,7 +37,7 @@ impl TryInto<PublicKey> for &ENode {
     fn try_into(self) -> Result<PublicKey, Self::Error> {
         let bytes =
             hex::decode(&self.id).map_err(|err| HandshakeError::HexError(err.to_string()))?;
-        let mut data = [0_u8; ECIES_EPHEMERAL_PK_LEN];
+        let mut data = [0_u8; ECIES_PUBK_LEN];
         data[0] = 4;
         data[1..].copy_from_slice(&bytes);
         let recipient_pub_key = PublicKey::from_slice(&data).unwrap();

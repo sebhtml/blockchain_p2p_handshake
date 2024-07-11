@@ -12,6 +12,7 @@ pub enum HandshakeError {
     HmacValidationFailure,
     HmacGenerationError,
     HexError(String),
+    RlpDecodeError,
 }
 
 impl Display for HandshakeError {
@@ -27,6 +28,7 @@ impl Display for HandshakeError {
             HandshakeError::BadRegex(err) => write!(f, "BadRegex: {}", err),
             HandshakeError::Secp256k1Error(err) => write!(f, "Secp256k1Error: {}", err),
             HandshakeError::HexError(err) => write!(f, "HexError: {}", err),
+            HandshakeError::RlpDecodeError => write!(f, "RlpDecodeError"),
         }
     }
 }

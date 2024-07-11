@@ -10,6 +10,8 @@ pub mod enode;
 pub mod handshake_error;
 pub mod rlpx_handshake;
 
+pub const NONCE_LENGTH: usize = 32;
+
 #[derive(Parser, Debug)]
 #[command(version, about)]
 struct Args {
