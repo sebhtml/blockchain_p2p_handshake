@@ -11,12 +11,15 @@ use crate::rlpx::{
         message::HELLO_MSG_ID,
     },
 };
+
 use rand::Rng;
 use secp256k1::{generate_keypair, PublicKey, SecretKey};
+use std::io::ErrorKind;
 use std::{
     io::{Read, Write},
     net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, TcpStream},
     str::FromStr,
+    time::Duration,
 };
 
 use super::{
@@ -76,14 +79,14 @@ fn prepare_auth_packet(
     Ok(auth_packet)
 }
 
-fn write_packet(fd: &mut impl Write, packet: &[u8]) -> Result<usize, HandshakeError> {
+fn write_bytes(fd: &mut impl Write, packet: &[u8]) -> Result<usize, HandshakeError> {
     let bytes_written = fd
         .write(&packet)
         .map_err(|err| HandshakeError::IOError(err.to_string()))?;
     Ok(bytes_written)
 }
 
-fn read_bytes_from_tcp(fd: &mut impl Read) -> Result<Vec<u8>, HandshakeError> {
+fn read_bytes(fd: &mut impl Read) -> Result<Vec<u8>, HandshakeError> {
     let mut buffer = vec![0; 2048];
     let bytes_read = fd
         .read(&mut buffer)
@@ -120,14 +123,14 @@ pub fn do_rlpx_handshake_as_initiator(
         &auth_message,
     )?;
 
-    let bytes_written = write_packet(&mut stream, &auth_packet)?;
+    let bytes_written = write_bytes(&mut stream, &auth_packet)?;
     println!("wrote auth with len {}", bytes_written);
     if bytes_written != auth_packet.len() {
         return Err(HandshakeError::IOError("bad bytes_written".into()));
     }
 
     // Read Ack packet.
-    let ack_packet = read_bytes_from_tcp(&mut stream)?;
+    let ack_packet = read_bytes(&mut stream)?;
     println!("read ack_packet with len {}", ack_packet.len());
 
     // ack = ack-size || enc-ack-body
@@ -158,7 +161,7 @@ pub fn do_rlpx_handshake_as_initiator(
     let hello = Message::hello(&initiator_static_pk.serialize_uncompressed());
     let hello_frame = write_frame(&hello, &secrets.aes_secret, &mut egress_mac);
 
-    let bytes_written = write_packet(&mut stream, &hello_frame)?;
+    let bytes_written = write_bytes(&mut stream, &hello_frame)?;
     println!("wrote hello with len {}", bytes_written);
     if bytes_written != hello_frame.len() {
         return Err(HandshakeError::IOError("bad bytes_written".into()));
@@ -166,7 +169,7 @@ pub fn do_rlpx_handshake_as_initiator(
 
     // TODO receive hello from recipient
     // Read hello packet.
-    let recipient_hello_frame = read_bytes_from_tcp(&mut stream)?;
+    let recipient_hello_frame = read_bytes(&mut stream)?;
     println!(
         "read recipient_hello with len {}",
         recipient_hello_frame.len()
@@ -187,8 +190,28 @@ pub fn do_rlpx_handshake_as_initiator(
         return Err(HandshakeError::RecipientHelloP2pProtocolMismatch);
     }
 
-    // TODO verify that the recipient has not disconnected from the TCP/IP connection.
+    // Verify that the recipient has not disconnected from the TCP/IP connection.
     // If the recipient disconnected, it means that its igress MAC check.
+    // If the recipient is not disconnected, doing a read with timeout should time out.
+    stream
+        .set_read_timeout(Some(Duration::from_secs(1)))
+        .map_err(|err| HandshakeError::IOError(err.to_string()))?;
+    let mut buffer = vec![0; 2048];
+    let result = stream.read(&mut buffer);
+    match result {
+        Ok(bytes_read) => {
+            if bytes_read == 0 {
+                return Err(HandshakeError::RecipientDisconnected);
+            } else {
+                return Err(HandshakeError::RecipientReturnedUndesiredBytes);
+            }
+        }
+        Err(err) => {
+            if err.kind() != ErrorKind::TimedOut {
+                return Err(HandshakeError::IOError(err.to_string()));
+            }
+        }
+    }
 
     Ok(secrets)
 }
