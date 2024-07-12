@@ -25,28 +25,36 @@ impl Secrets {
         let ephemeral_key = ecdh_agree(ephemeral_sk, remote_ephemeral_pk);
 
         //Hash the nonces
-        let mut hasher = Keccak256::new();
-        hasher.update(nonce);
-        hasher.update(initiator_nonce);
-        let nonces_hash = hasher.finalize().to_vec();
+        let nonces_hash = {
+            let mut hasher = Keccak256::new();
+            hasher.update(nonce);
+            hasher.update(initiator_nonce);
+            hasher.finalize().to_vec()
+        };
 
         // Shared secret
-        let mut hasher = Keccak256::new();
-        hasher.update(&ephemeral_key);
-        hasher.update(&nonces_hash);
-        let shared_secret = hasher.finalize();
+        let shared_secret = {
+            let mut hasher = Keccak256::new();
+            hasher.update(&ephemeral_key);
+            hasher.update(&nonces_hash);
+            hasher.finalize().to_vec()
+        };
 
         // AES secret
-        let mut hasher = Keccak256::new();
-        hasher.update(&ephemeral_key);
-        hasher.update(&shared_secret);
-        let aes_secret = hasher.finalize();
+        let aes_secret = {
+            let mut hasher = Keccak256::new();
+            hasher.update(&ephemeral_key);
+            hasher.update(&shared_secret);
+            hasher.finalize().to_vec()
+        };
 
         // MAC secret
-        let mut hasher = Keccak256::new();
-        hasher.update(&ephemeral_key);
-        hasher.update(&aes_secret);
-        let mac_secret = hasher.finalize();
+        let mac_secret = {
+            let mut hasher = Keccak256::new();
+            hasher.update(&ephemeral_key);
+            hasher.update(&aes_secret);
+            hasher.finalize().to_vec()
+        };
 
         Self {
             static_shared_secret: static_shared_secret.try_into().unwrap(),

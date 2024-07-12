@@ -1,8 +1,7 @@
 use aes::{
-    cipher::{block_padding::NoPadding, BlockEncryptMut, KeyInit},
-    Aes256,
+    cipher::{block_padding::NoPadding, BlockEncrypt, KeyInit},
+    Aes256Enc,
 };
-use ecb::Encryptor;
 use sha3::{Digest, Keccak256};
 
 pub struct FrameMacTags {
@@ -36,14 +35,14 @@ impl MacState {
         let mac = &self.state.clone().finalize().to_vec()[..16];
 
         let mac_secret = self.mac_secret.as_slice();
-        let cipher = Encryptor::<Aes256>::new_from_slice(mac_secret.into()).unwrap();
+        let cipher = Aes256Enc::new_from_slice(mac_secret.into()).unwrap();
 
         let mut aes_mac = mac.to_vec();
         let msg_len = aes_mac.len();
         println!("msg_len {}", msg_len);
         println!("input {:?}", mac);
         cipher
-            .encrypt_padded_mut::<NoPadding>(&mut aes_mac, msg_len)
+            .encrypt_padded::<NoPadding>(&mut aes_mac, msg_len)
             .unwrap();
         println!("output {:?}", aes_mac);
 

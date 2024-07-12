@@ -20,6 +20,10 @@ impl AckMessage {
             .ok_or(HandshakeError::RlpDecodeError)?
             .as_val()
             .map_err(|_| HandshakeError::RlpDecodeError)?;
+        println!(
+            "recipient_ephemeral_pubk {:?} ",
+            hex::encode(&recipient_ephemeral_pubk)
+        );
         let recipient_ephemeral_pubk = if recipient_ephemeral_pubk.len() == 64 {
             vec![vec![4], recipient_ephemeral_pubk].concat()
         } else if recipient_ephemeral_pubk.len() == 65 {

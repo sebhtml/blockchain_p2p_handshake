@@ -23,7 +23,7 @@ struct EciesKeys {
 }
 
 pub fn ecdh_agree(sk: &SecretKey, pk: &PublicKey) -> [u8; 32] {
-    shared_secret_point(&pk, &sk)[0..32]
+    shared_secret_point(&pk, &sk)[..32]
         .to_vec()
         .try_into()
         .unwrap()

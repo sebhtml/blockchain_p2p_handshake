@@ -2,7 +2,7 @@ use aes::{
     cipher::{KeyIvInit, StreamCipher},
     Aes256,
 };
-use ctr::Ctr128BE;
+use ctr::Ctr64BE;
 use rlp::RlpStream;
 
 use crate::rlpx::handshake_error::HandshakeError;
@@ -40,7 +40,7 @@ fn generate_frame_cipher_texts(
     // frame-ciphertext = aes(aes-secret, frame-data || frame-padding)
     let iv = [0 as u8; 16].as_slice();
     let aes_secret = aes_secret.as_slice();
-    let mut cipher = Ctr128BE::<Aes256>::new(aes_secret.into(), iv.into());
+    let mut cipher = Ctr64BE::<Aes256>::new(aes_secret.into(), iv.into());
     let msg = vec![frame_data, frame_padding].concat();
     let mut frame_ciphertext = msg.to_vec();
     cipher.apply_keystream(&mut frame_ciphertext);
@@ -70,7 +70,7 @@ fn generate_frame_cipher_texts(
     let header = vec![frame_size, &header_data, &header_padding].concat();
 
     // header-ciphertext = aes(aes-secret, header)
-    let mut cipher = Ctr128BE::<Aes256>::new(aes_secret.into(), iv.into());
+    let mut cipher = Ctr64BE::<Aes256>::new(aes_secret.into(), iv.into());
     let mut header_ciphertext = header.to_vec();
     cipher.apply_keystream(&mut header_ciphertext);
 
@@ -121,8 +121,8 @@ pub fn read_frame(
     // Do the MAC check
     let mac_tags = ingress_mac.digest_frame(&header_ciphertext, frame_ciphertext);
     println!("Validating header_mac");
-    println!("From ingress message {:?}", header_mac);
-    println!("From ingress state {:?}", mac_tags.header_mac);
+    println!("header_mac from ingress message {:?}", header_mac);
+    println!("header_mac from ingress_mac {:?}", mac_tags.header_mac);
     if header_mac != mac_tags.header_mac {
         return Err(HandshakeError::HmacValidationFailure);
     }
@@ -134,7 +134,7 @@ pub fn read_frame(
     // Use AES to decrypt.
     let aes_secret = aes_secret.as_slice();
     let iv = [0 as u8; 16].as_slice();
-    let mut cipher = Ctr128BE::<Aes256>::new(aes_secret.into(), iv.into());
+    let mut cipher = Ctr64BE::<Aes256>::new(aes_secret.into(), iv.into());
 
     // header-ciphertext = aes(aes-secret, header)
 
