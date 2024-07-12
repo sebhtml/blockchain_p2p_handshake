@@ -6,16 +6,22 @@ use std::{
     str::FromStr,
 };
 
-use crate::rlpx::{ack_message::AckMessage, ecies::ecies_decrypt};
+use crate::{
+    p2p::{
+        frame::generate_frame,
+        message::{Hello, Message},
+    },
+    rlpx::{ack_message::AckMessage, ecies::ecies_decrypt},
+};
 
 use super::{
     auth_message::AuthMessage,
     ecies::{ecies_encrypt, ECIES_IV_LEN, ECIES_PUBK_LEN, ECIES_TAG_LEN},
     enode::ENode,
-    frame::generate_frame,
     handshake_error::HandshakeError,
     nonce::make_nonce,
-    secrets::{EphemeralSecrets, FrameSecrets},
+    secrets::Secrets,
+    IntoRlpList,
 };
 
 fn get_socket(ip_address: &str, port: u16) -> Result<SocketAddr, HandshakeError> {
@@ -75,7 +81,7 @@ fn write_packet(fd: &mut impl Write, packet: &[u8]) -> Result<usize, HandshakeEr
 /// See https://github.com/ethereum/devp2p/blob/master/rlpx.md
 /// ack = ack-size || enc-ack-body
 /// ack-size = size of enc-ack-body, encoded as a big-endian 16-bit integer
-fn read_ack_packet(fd: &mut impl Read) -> Result<Vec<u8>, HandshakeError> {
+fn read_ack(fd: &mut impl Read) -> Result<Vec<u8>, HandshakeError> {
     let mut ack_size_bytes = vec![0; 2];
 
     let bytes_read = fd
@@ -98,12 +104,20 @@ fn read_ack_packet(fd: &mut impl Read) -> Result<Vec<u8>, HandshakeError> {
     ));
 }
 
+fn read_hello(fd: &mut impl Read) -> Result<Vec<u8>, HandshakeError> {
+    let mut buffer = vec![0; 2048];
+    let bytes_read = fd
+        .read(&mut buffer)
+        .map_err(|err| HandshakeError::IOError(err.to_string()))?;
+    Ok(buffer[0..bytes_read].to_vec())
+}
+
 /// See RLPx : https://github.com/ethereum/devp2p/blob/master/rlpx.md
 pub fn do_rlpx_handshake_as_initiator(
     initiator_static_sk: &SecretKey,
     initiator_static_pk: &PublicKey,
     recipient_enode: &ENode,
-) -> Result<EphemeralSecrets, HandshakeError> {
+) -> Result<Secrets, HandshakeError> {
     let socket = get_socket(&recipient_enode.ip_addr, recipient_enode.port)?;
     let mut stream = TcpStream::connect(socket).unwrap();
     let mut rng = secp256k1::rand::thread_rng();
@@ -128,12 +142,14 @@ pub fn do_rlpx_handshake_as_initiator(
     )?;
 
     let bytes_written = write_packet(&mut stream, &auth_packet)?;
+    println!("wrote auth with len {}", bytes_written);
     if bytes_written != auth_packet.len() {
         return Err(HandshakeError::IOError("bad bytes_written".into()));
     }
 
     // Read Ack packet.
-    let ack_packet = read_ack_packet(&mut stream)?;
+    let ack_packet = read_ack(&mut stream)?;
+    println!("read ack_packet with len {}", ack_packet.len());
 
     // ack = ack-size || enc-ack-body
     // ack-size = size of enc-ack-body, encoded as a big-endian 16-bit integer
@@ -146,31 +162,31 @@ pub fn do_rlpx_handshake_as_initiator(
     let remote_ephemeral_pk = PublicKey::from_slice(&ack.recipient_ephemeral_pubk).unwrap();
 
     // Generate secrets.
-    let ephemeral_secrets = EphemeralSecrets::new(
+    let secrets = Secrets::new(
         initiator_static_sk,
         &recipient_static_pk,
         &initiator_ephemeral_sk,
         &remote_ephemeral_pk,
+        &ack.recipient_nonce,
+        &initiator_nonce,
     );
+    println!("Got secrets");
 
-    // TODO send hello to recipient
-    let frame_secrets =
-        FrameSecrets::make_nonce_secrets(&initiator_nonce, &ephemeral_secrets.ephemeral_key);
+    
+    // TODO send Hello to recipient
+    let hello = Message::hello(&initiator_static_pk.serialize_uncompressed());
+    let hello_frame = generate_frame(hello.msg_id, &hello.message_data, &secrets.aes_secret);
 
-    // TODO add a struct Frame
-    let hello = generate_frame(&[], "Hello".as_bytes(), &frame_secrets);
-
-    let bytes_written = write_packet(&mut stream, &hello)?;
-    if bytes_written != hello.len() {
+    let bytes_written = write_packet(&mut stream, &hello_frame)?;
+    println!("wrote hello with len {}", bytes_written);
+    if bytes_written != hello_frame.len() {
         return Err(HandshakeError::IOError("bad bytes_written".into()));
     }
 
-    // TODO receive hello response from recipient
-    // Read hello response packet.
-    //let hello_response = read_ack_packet(&mut stream)?;
-    //println!("hello_response has len {}", hello_response.len());
+    // TODO receive hello from recipient
+    // Read hello packet.
+    let recipient_hello = read_hello(&mut stream)?;
+    println!("read recipient_hello with len {}", recipient_hello.len());
 
-    println!("Got ephemeral secrets");
-
-    Ok(ephemeral_secrets)
+    Ok(secrets)
 }

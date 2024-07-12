@@ -1,4 +1,4 @@
-use super::handshake_error::HandshakeError;
+use super::{handshake_error::HandshakeError, IntoRlpList};
 use rlp::RlpStream;
 use secp256k1::{ecdh::SharedSecret, Message, PublicKey, Secp256k1, SecretKey};
 
@@ -47,8 +47,10 @@ impl AuthMessage {
 
         Ok(auth)
     }
+}
 
-    pub fn into_rlp_list(&self) -> Vec<u8> {
+impl IntoRlpList for AuthMessage {
+    fn into_rlp_list(&self) -> Vec<u8> {
         let mut auth_body = RlpStream::new_list(4);
         auth_body.append(&self.sig);
         auth_body.append(&self.initiator_pubk);

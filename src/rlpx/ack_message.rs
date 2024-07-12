@@ -1,13 +1,13 @@
 use rlp::Rlp;
 
-use super::{auth_message::NONCE_LENGTH, ecies::ECIES_PUBK_LEN, handshake_error::HandshakeError};
+use super::handshake_error::HandshakeError;
 
 /// ack-body = [recipient-ephemeral-pubk, recipient-nonce, ack-vsn, ...]
 /// See https://github.com/ethereum/devp2p/blob/master/rlpx.md
 #[derive(Debug)]
 pub struct AckMessage {
-    pub recipient_ephemeral_pubk: [u8; ECIES_PUBK_LEN],
-    pub recipient_nonce: [u8; NONCE_LENGTH],
+    pub recipient_ephemeral_pubk: [u8; 65],
+    pub recipient_nonce: [u8; 32],
     pub ack_vsn: u32,
 }
 
