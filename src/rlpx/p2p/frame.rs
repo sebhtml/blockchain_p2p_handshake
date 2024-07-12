@@ -5,7 +5,9 @@ use aes::{
 use ctr::Ctr128BE;
 use rlp::RlpStream;
 
-use super::{mac::MacDigest, message::Message};
+use crate::rlpx::handshake_error::HandshakeError;
+
+use super::{mac::MacState, message::Message};
 
 pub struct FrameCipherTexts {
     pub header_ciphertext: [u8; 16],
@@ -80,11 +82,7 @@ fn generate_frame_cipher_texts(
     }
 }
 
-pub fn write_frame(
-    msg: &Message,
-    aes_secret: &[u8; 32],
-    egress_mac: &mut impl MacDigest,
-) -> Vec<u8> {
+pub fn write_frame(msg: &Message, aes_secret: &[u8; 32], egress_mac: &mut MacState) -> Vec<u8> {
     let msg_id = msg.msg_id;
     let msg_data = &msg.msg_data;
     let cipher_texts = generate_frame_cipher_texts(msg_id, msg_data, aes_secret);
@@ -107,14 +105,54 @@ pub fn write_frame(
     frame
 }
 
+/// See https://github.com/ethereum/devp2p/blob/master/rlpx.md
 pub fn read_frame(
-    _frame: &[u8],
-    _aes_secret: &[u8; 32],
-    _ingress_mac: &mut impl MacDigest,
-) -> Message {
-    // TODO read frame into Message
-    let msg_id = 99;
+    frame: &[u8],
+    aes_secret: &[u8; 32],
+    ingress_mac: &mut MacState,
+) -> Result<Message, HandshakeError> {
+    // frame = header-ciphertext || header-mac || frame-ciphertext || frame-mac
+    let (header_ciphertext, cdr) = frame.split_at(16);
+    let (header_mac, cdr) = cdr.split_at(16);
+    let (frame_ciphertext, frame_mac) = cdr.split_at(cdr.len() - 16);
+
+    let header_ciphertext: [u8; 16] = header_ciphertext.try_into().unwrap();
+
+    // Do the MAC check
+    let mac_tags = ingress_mac.digest_frame(&header_ciphertext, frame_ciphertext);
+    println!("Validating header_mac");
+    println!("From ingress message {:?}", header_mac);
+    println!("From ingress state {:?}", mac_tags.header_mac);
+    if header_mac != mac_tags.header_mac {
+        return Err(HandshakeError::HmacValidationFailure);
+    }
+    println!("Validating frame_mac");
+    if frame_mac != mac_tags.frame_mac {
+        return Err(HandshakeError::HmacValidationFailure);
+    }
+
+    // Use AES to decrypt.
+    let aes_secret = aes_secret.as_slice();
+    let iv = [0 as u8; 16].as_slice();
+    let mut cipher = Ctr128BE::<Aes256>::new(aes_secret.into(), iv.into());
+
+    // header-ciphertext = aes(aes-secret, header)
+
+    let mut header = header_ciphertext.to_vec();
+    cipher.apply_keystream(&mut header);
+    println!("header {:?}", header);
+
+    // frame-ciphertext = aes(aes-secret, frame-data || frame-padding)
+    let mut frame_data_and_padding = frame_ciphertext.to_vec();
+    cipher.apply_keystream(&mut frame_data_and_padding);
+
+    // frame-data = msg-id || msg-data
+
+    println!("frame_data_and_padding {:?}", frame_data_and_padding);
+    let msg_id = rlp::decode(&frame_data_and_padding).unwrap();
+    println!("msg_id: {}", msg_id);
     let msg_data = vec![];
-    // TODO do the MAC check
-    Message { msg_id, msg_data }
+
+    let message = Message { msg_id, msg_data };
+    Ok(message)
 }

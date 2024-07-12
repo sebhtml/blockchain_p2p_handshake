@@ -1,5 +1,7 @@
-use secp256k1::{ecdh::shared_secret_point, PublicKey, SecretKey};
+use secp256k1::{PublicKey, SecretKey};
 use sha3::{Digest, Keccak256};
+
+use super::ecies::ecdh_agree;
 
 #[derive(Debug)]
 pub struct Secrets {
@@ -19,14 +21,14 @@ impl Secrets {
         nonce: &[u8; 32],
         initiator_nonce: &[u8; 32],
     ) -> Self {
-        let static_shared_secret = shared_secret_point(remote_static_pk, static_sk)[0..32].to_vec();
-        let ephemeral_key = shared_secret_point(remote_ephemeral_pk, ephemeral_sk)[0..32].to_vec();
+        let static_shared_secret = ecdh_agree(static_sk, remote_static_pk);
+        let ephemeral_key = ecdh_agree(ephemeral_sk, remote_ephemeral_pk);
 
         //Hash the nonces
         let mut hasher = Keccak256::new();
         hasher.update(nonce);
         hasher.update(initiator_nonce);
-        let nonces_hash = hasher.finalize();
+        let nonces_hash = hasher.finalize().to_vec();
 
         // Shared secret
         let mut hasher = Keccak256::new();

@@ -14,5 +14,8 @@ concat-kdf = "0.1.0"
 sha2 = "0.10.8"
 sha3 = "0.10.8"
 aes = "0.8.4"
+ecb = "0.1.2"
 ctr = "0.9.2"
 hmac = "0.12.1"
+# TODO use primitive-types for the XOR
+#primitive-types = "0.12.2"

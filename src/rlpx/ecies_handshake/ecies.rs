@@ -22,13 +22,20 @@ struct EciesKeys {
     mac_key: Vec<u8>,
 }
 
+pub fn ecdh_agree(sk: &SecretKey, pk: &PublicKey) -> [u8; 32] {
+    shared_secret_point(&pk, &sk)[0..32]
+        .to_vec()
+        .try_into()
+        .unwrap()
+}
+
 /// KDF(k, len): the NIST SP 800-56 Concatenation Key Derivation Function
 /// See https://github.com/ethereum/devp2p/blob/master/rlpx.md
 fn ecies_generate_key_material(
     pk: &PublicKey,
     sk: &SecretKey,
 ) -> Result<EciesKeys, HandshakeError> {
-    let shared_secret = shared_secret_point(&pk, &sk)[0..32].to_vec();
+    let shared_secret = ecdh_agree(sk, pk);
 
     // TODO remove unwrap calls.
     let mut shared_secret_derived_key = [0_u8; 32];

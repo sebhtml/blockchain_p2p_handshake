@@ -1,18 +1,12 @@
 use crate::rlpx::{
     ecies_handshake::auth_message::{prepare_auth_packet, AuthMessage},
-    p2p::{
-        mac::CommMacState,
-        message::{Hello, Message},
-    },
+    p2p::mac::MacState,
 };
 use crate::rlpx::{
     ecies_handshake::{
         ack_message::AckMessage, ecies::ecies_decrypt, nonce::make_nonce, secrets::Secrets,
     },
-    p2p::{
-        frame::{read_frame, write_frame},
-        message::HELLO_MSG_ID,
-    },
+    p2p::{frame::read_frame, message::HELLO_MSG_ID},
 };
 
 use secp256k1::{generate_keypair, PublicKey, SecretKey};
@@ -101,6 +95,7 @@ pub fn do_rlpx_handshake_as_initiator(
     // Convert arc-body to AckMessage.
     let ack = AckMessage::from_rlp_list(&ack_body)?;
     let remote_ephemeral_pk = PublicKey::from_slice(&ack.recipient_ephemeral_pubk).unwrap();
+    let recipient_nonce = &ack.recipient_nonce;
 
     // Generate session secrets.
     let secrets = Secrets::new(
@@ -108,14 +103,35 @@ pub fn do_rlpx_handshake_as_initiator(
         &recipient_static_pk,
         &initiator_ephemeral_sk,
         &remote_ephemeral_pk,
-        &ack.recipient_nonce,
+        recipient_nonce,
         &initiator_nonce,
     );
     println!("Got secrets");
 
-    let mut egress_mac = CommMacState::new();
-    let mut ingress_mac = CommMacState::new();
+    // Initiate egress and ingress MAC states.
 
+    let egress_xor: Vec<u8> = secrets
+        .mac_secret
+        .iter()
+        .zip(recipient_nonce.iter())
+        .map(|(&x1, &x2)| x1 ^ x2)
+        .collect();
+    let mut egress_mac = MacState::new(&secrets.mac_secret);
+    egress_mac.update(&egress_xor);
+    egress_mac.update(&auth_packet);
+
+    let ingress_xor: Vec<u8> = secrets
+        .mac_secret
+        .iter()
+        .zip(initiator_nonce.iter())
+        .map(|(&x1, &x2)| x1 ^ x2)
+        .collect();
+    let mut ingress_mac = MacState::new(&secrets.mac_secret);
+    ingress_mac.update(&ingress_xor);
+    ingress_mac.update(&ack_packet);
+
+    /*
+    TODO uncomment
     // TODO send Hello to recipient
     let hello = Message::hello(&initiator_static_pk.serialize_uncompressed());
     let hello_frame = write_frame(&hello, &secrets.aes_secret, &mut egress_mac);
@@ -125,6 +141,7 @@ pub fn do_rlpx_handshake_as_initiator(
     if bytes_written != hello_frame.len() {
         return Err(HandshakeError::IOError("bad bytes_written".into()));
     }
+    */
 
     // TODO receive hello from recipient
     // Read hello packet.
@@ -137,7 +154,7 @@ pub fn do_rlpx_handshake_as_initiator(
         &recipient_hello_frame,
         &secrets.aes_secret,
         &mut ingress_mac,
-    );
+    )?;
     if recipient_hello.msg_id != HELLO_MSG_ID {
         return Err(HandshakeError::BadRecipientHelloMsgId);
     }
