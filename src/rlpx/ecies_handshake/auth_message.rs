@@ -14,8 +14,7 @@ pub const NONCE_LENGTH: usize = 32;
 pub struct AuthMessage {
     pub sig: Vec<u8>,
     pub initiator_pubk: Vec<u8>,
-    // TODO use [u8; 32] for nonce
-    pub initiator_nonce: Vec<u8>,
+    pub initiator_nonce: [u8; 32],
     pub auth_vsn: u32,
 }
 
@@ -45,7 +44,7 @@ impl AuthMessage {
         let auth = AuthMessage {
             sig: signature,
             initiator_pubk: initiator_pk.serialize_uncompressed()[1..].to_vec(),
-            initiator_nonce: initiator_nonce.to_vec(),
+            initiator_nonce: initiator_nonce.to_owned(),
             auth_vsn,
         };
 
@@ -58,7 +57,7 @@ impl IntoRlpList for AuthMessage {
         let mut auth_body = RlpStream::new_list(4);
         auth_body.append(&self.sig);
         auth_body.append(&self.initiator_pubk);
-        auth_body.append(&self.initiator_nonce);
+        auth_body.append(&self.initiator_nonce.as_slice());
         auth_body.append(&self.auth_vsn);
         let auth_body = auth_body.out();
         auth_body.to_vec()
