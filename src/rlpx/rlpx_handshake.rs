@@ -1,3 +1,16 @@
+use crate::rlpx::p2p::{
+    mac::CommMacState,
+    message::{Hello, Message},
+};
+use crate::rlpx::{
+    ecies_handshake::{
+        ack_message::AckMessage, ecies::ecies_decrypt, nonce::make_nonce, secrets::Secrets,
+    },
+    p2p::{
+        frame::{read_frame, write_frame},
+        message::HELLO_MSG_ID,
+    },
+};
 use rand::Rng;
 use secp256k1::{generate_keypair, PublicKey, SecretKey};
 use std::{
@@ -6,23 +19,13 @@ use std::{
     str::FromStr,
 };
 
-use crate::rlpx::{
-    ack_message::AckMessage,
-    ecies::ecies_decrypt,
-    p2p::{
-        frame::{read_frame, write_frame},
-        mac::CommMacState,
-        message::{Hello, Message, HELLO_MSG_ID},
-    },
-};
-
 use super::{
-    auth_message::AuthMessage,
-    ecies::{ecies_encrypt, ECIES_IV_LEN, ECIES_PUBK_LEN, ECIES_TAG_LEN},
+    ecies_handshake::{
+        auth_message::AuthMessage,
+        ecies::{ecies_encrypt, ECIES_IV_LEN, ECIES_PUBK_LEN, ECIES_TAG_LEN},
+    },
     enode::ENode,
     handshake_error::HandshakeError,
-    nonce::make_nonce,
-    secrets::Secrets,
     IntoRlpList,
 };
 

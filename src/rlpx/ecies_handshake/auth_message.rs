@@ -1,6 +1,7 @@
-use super::{handshake_error::HandshakeError, IntoRlpList};
 use rlp::RlpStream;
 use secp256k1::{ecdh::SharedSecret, Message, PublicKey, Secp256k1, SecretKey};
+
+use crate::rlpx::{handshake_error::HandshakeError, IntoRlpList};
 
 pub const NONCE_LENGTH: usize = 32;
 

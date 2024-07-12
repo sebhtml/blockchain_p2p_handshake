@@ -1,6 +1,6 @@
 use rlp::Rlp;
 
-use super::handshake_error::HandshakeError;
+use crate::rlpx::handshake_error::HandshakeError;
 
 /// ack-body = [recipient-ephemeral-pubk, recipient-nonce, ack-vsn, ...]
 /// See https://github.com/ethereum/devp2p/blob/master/rlpx.md
