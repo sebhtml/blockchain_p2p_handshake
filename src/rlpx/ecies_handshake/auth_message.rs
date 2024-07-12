@@ -1,7 +1,10 @@
+use rand::Rng;
 use rlp::RlpStream;
 use secp256k1::{ecdh::SharedSecret, Message, PublicKey, Secp256k1, SecretKey};
 
 use crate::rlpx::{handshake_error::HandshakeError, IntoRlpList};
+
+use super::ecies::{ecies_encrypt, ECIES_IV_LEN, ECIES_PUBK_LEN, ECIES_TAG_LEN};
 
 pub const NONCE_LENGTH: usize = 32;
 
@@ -60,4 +63,38 @@ impl IntoRlpList for AuthMessage {
         let auth_body = auth_body.out();
         auth_body.to_vec()
     }
+}
+
+pub fn prepare_auth_packet(
+    initiator_ephemeral_sk: &SecretKey,
+    initiator_ephemeral_pk: &PublicKey,
+    recipient_static_pk: &PublicKey,
+    auth_message: &AuthMessage,
+) -> Result<Vec<u8>, HandshakeError> {
+    // Encode auth with RLP
+    let auth_body = auth_message.into_rlp_list();
+
+    // Add random padding
+    let mut rng = rand::thread_rng();
+    let random_padding = rng.gen_range(100..200);
+    let random_bytes: Vec<u8> = vec![0; random_padding];
+    let auth_body = [auth_body.to_vec(), random_bytes].concat();
+
+    // Encrypt
+    let auth_size: usize = ECIES_PUBK_LEN + ECIES_IV_LEN + auth_body.len() + ECIES_TAG_LEN;
+    let auth_size = u16::try_from(auth_size).unwrap();
+    let auth_size = auth_size.to_be_bytes();
+    let enc_auth_body = &ecies_encrypt(
+        initiator_ephemeral_pk,
+        initiator_ephemeral_sk,
+        &recipient_static_pk,
+        &auth_body,
+        &auth_size,
+    )
+    .unwrap();
+
+    // Make auth-packet
+    let auth_packet = [&auth_size, enc_auth_body.as_slice()].concat();
+
+    Ok(auth_packet)
 }

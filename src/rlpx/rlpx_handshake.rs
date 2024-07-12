@@ -1,6 +1,9 @@
-use crate::rlpx::p2p::{
-    mac::CommMacState,
-    message::{Hello, Message},
+use crate::rlpx::{
+    ecies_handshake::auth_message::{prepare_auth_packet, AuthMessage},
+    p2p::{
+        mac::CommMacState,
+        message::{Hello, Message},
+    },
 };
 use crate::rlpx::{
     ecies_handshake::{
@@ -12,7 +15,6 @@ use crate::rlpx::{
     },
 };
 
-use rand::Rng;
 use secp256k1::{generate_keypair, PublicKey, SecretKey};
 use std::io::ErrorKind;
 use std::{
@@ -22,15 +24,7 @@ use std::{
     time::Duration,
 };
 
-use super::{
-    ecies_handshake::{
-        auth_message::AuthMessage,
-        ecies::{ecies_encrypt, ECIES_IV_LEN, ECIES_PUBK_LEN, ECIES_TAG_LEN},
-    },
-    enode::ENode,
-    handshake_error::HandshakeError,
-    IntoRlpList,
-};
+use super::{enode::ENode, handshake_error::HandshakeError};
 
 fn get_socket(ip_address: &str, port: u16) -> Result<SocketAddr, HandshakeError> {
     let addr = if let Ok(addr) = Ipv4Addr::from_str(&ip_address) {
@@ -43,40 +37,6 @@ fn get_socket(ip_address: &str, port: u16) -> Result<SocketAddr, HandshakeError>
 
     let socket = SocketAddr::new(addr, port);
     Ok(socket)
-}
-
-fn prepare_auth_packet(
-    initiator_ephemeral_sk: &SecretKey,
-    initiator_ephemeral_pk: &PublicKey,
-    recipient_static_pk: &PublicKey,
-    auth_message: &AuthMessage,
-) -> Result<Vec<u8>, HandshakeError> {
-    // Encode auth with RLP
-    let auth_body = auth_message.into_rlp_list();
-
-    // Add random padding
-    let mut rng = rand::thread_rng();
-    let random_padding = rng.gen_range(100..200);
-    let random_bytes: Vec<u8> = vec![0; random_padding];
-    let auth_body = [auth_body.to_vec(), random_bytes].concat();
-
-    // Encrypt
-    let auth_size: usize = ECIES_PUBK_LEN + ECIES_IV_LEN + auth_body.len() + ECIES_TAG_LEN;
-    let auth_size = u16::try_from(auth_size).unwrap();
-    let auth_size = auth_size.to_be_bytes();
-    let enc_auth_body = &ecies_encrypt(
-        initiator_ephemeral_pk,
-        initiator_ephemeral_sk,
-        &recipient_static_pk,
-        &auth_body,
-        &auth_size,
-    )
-    .unwrap();
-
-    // Make auth-packet
-    let auth_packet = [&auth_size, enc_auth_body.as_slice()].concat();
-
-    Ok(auth_packet)
 }
 
 fn write_bytes(fd: &mut impl Write, packet: &[u8]) -> Result<usize, HandshakeError> {
@@ -136,14 +96,13 @@ pub fn do_rlpx_handshake_as_initiator(
     // ack = ack-size || enc-ack-body
     // ack-size = size of enc-ack-body, encoded as a big-endian 16-bit integer
     let (ack_size, enc_ack_body) = ack_packet.split_at(2);
-
     let ack_body = ecies_decrypt(&initiator_static_sk, &enc_ack_body, &ack_size)?;
 
     // Convert arc-body to AckMessage.
     let ack = AckMessage::from_rlp_list(&ack_body)?;
     let remote_ephemeral_pk = PublicKey::from_slice(&ack.recipient_ephemeral_pubk).unwrap();
 
-    // Generate secrets.
+    // Generate session secrets.
     let secrets = Secrets::new(
         initiator_static_sk,
         &recipient_static_pk,
