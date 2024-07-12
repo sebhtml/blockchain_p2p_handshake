@@ -3,9 +3,8 @@ use rlp::RlpStream;
 use crate::rlpx::IntoRlpList;
 
 pub struct Message {
-    // TODO don't make fields public
     pub msg_id: u64,
-    pub message_data: Vec<u8>,
+    pub msg_data: Vec<u8>,
 }
 
 pub struct Capability {
@@ -17,11 +16,11 @@ pub const HELLO_MSG_ID: u64 = 0;
 
 pub struct HelloMessageData {
     // TODO validate type of integer
-    protocol_version: u32,
-    client_id: String,
-    capabilities: Vec<Capability>,
-    listen_port: u32,
-    node_id: [u8; 65],
+    pub protocol_version: u32,
+    pub client_id: String,
+    pub capabilities: Vec<Capability>,
+    pub listen_port: u32,
+    pub node_id: [u8; 65],
 }
 
 impl HelloMessageData {
@@ -75,7 +74,25 @@ impl Hello for Message {
 
         Message {
             msg_id: HELLO_MSG_ID,
-            message_data,
+            msg_data: message_data,
+        }
+    }
+}
+
+impl Message {
+    pub fn to_hello_msg_data(&self) -> HelloMessageData {
+        // TODO decode msg_data into HelloMessageData
+        let protocol_version = 99;
+        let client_id = "TODO".into();
+        let capabilities = vec![];
+        let listen_port = 99;
+        let node_id = vec![0; 65].try_into().unwrap();
+        HelloMessageData {
+            protocol_version,
+            client_id,
+            capabilities,
+            listen_port,
+            node_id,
         }
     }
 }

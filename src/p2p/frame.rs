@@ -5,9 +5,20 @@ use aes::{
 use ctr::Ctr128BE;
 use rlp::RlpStream;
 
+use super::{mac::MacDigest, message::Message};
+
+pub struct FrameCipherTexts {
+    pub header_ciphertext: [u8; 16],
+    pub frame_ciphertext: Vec<u8>,
+}
+
 /// Generate a frame.
 /// See section "Framing" on the web page https://github.com/ethereum/devp2p/blob/master/rlpx.md
-pub fn generate_frame(msg_id: u64, msg_data: &[u8], aes_secret: &[u8; 32]) -> Vec<u8> {
+fn generate_frame_cipher_texts(
+    msg_id: u64,
+    msg_data: &[u8],
+    aes_secret: &[u8; 32],
+) -> FrameCipherTexts {
     // frame-data = msg-id || msg-data
     let msg_id = rlp::encode(&msg_id);
     let frame_data = vec![&msg_id, msg_data].concat();
@@ -61,14 +72,49 @@ pub fn generate_frame(msg_id: u64, msg_data: &[u8], aes_secret: &[u8; 32]) -> Ve
     let mut header_ciphertext = header.to_vec();
     cipher.apply_keystream(&mut header_ciphertext);
 
+    println!("header_ciphertext len: {}", header_ciphertext.len());
+
+    FrameCipherTexts {
+        header_ciphertext: header_ciphertext.try_into().unwrap(),
+        frame_ciphertext,
+    }
+}
+
+pub fn write_frame(
+    msg: &Message,
+    aes_secret: &[u8; 32],
+    egress_mac: &mut impl MacDigest,
+) -> Vec<u8> {
+    let msg_id = msg.msg_id;
+    let msg_data = &msg.msg_data;
+    let cipher_texts = generate_frame_cipher_texts(msg_id, msg_data, aes_secret);
+    let header_ciphertext = &cipher_texts.header_ciphertext;
+    let frame_ciphertext = &cipher_texts.frame_ciphertext;
+
+    let mac_tags = egress_mac.digest_frame(header_ciphertext, frame_ciphertext);
+    let header_mac = &mac_tags.header_mac;
+    let frame_mac = &mac_tags.frame_mac;
+
     // frame = header-ciphertext || header-mac || frame-ciphertext || frame-mac
-
-    // TODO fix header mac
-    let header_mac = vec![0 as u8; 32];
-
-    // TODO fix frame mac
-    let frame_mac = vec![0 as u8; 32];
-    let frame = vec![header_ciphertext, header_mac, frame_ciphertext, frame_mac].concat();
+    let frame = vec![
+        header_ciphertext.as_slice(),
+        header_mac,
+        frame_ciphertext,
+        frame_mac,
+    ]
+    .concat();
 
     frame
+}
+
+pub fn read_frame(
+    _frame: &[u8],
+    _aes_secret: &[u8; 32],
+    _ingress_mac: &mut impl MacDigest,
+) -> Message {
+    // TODO read frame into Message
+    let msg_id = 99;
+    let msg_data = vec![];
+    // TODO do the MAC check
+    Message { msg_id, msg_data }
 }

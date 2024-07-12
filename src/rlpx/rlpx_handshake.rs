@@ -8,8 +8,9 @@ use std::{
 
 use crate::{
     p2p::{
-        frame::generate_frame,
-        message::{Hello, Message},
+        frame::{read_frame, write_frame},
+        mac::CommMacState,
+        message::{Hello, Message, HELLO_MSG_ID},
     },
     rlpx::{ack_message::AckMessage, ecies::ecies_decrypt},
 };
@@ -172,10 +173,12 @@ pub fn do_rlpx_handshake_as_initiator(
     );
     println!("Got secrets");
 
-    
+    let mut egress_mac = CommMacState::new();
+    let mut ingress_mac = CommMacState::new();
+
     // TODO send Hello to recipient
     let hello = Message::hello(&initiator_static_pk.serialize_uncompressed());
-    let hello_frame = generate_frame(hello.msg_id, &hello.message_data, &secrets.aes_secret);
+    let hello_frame = write_frame(&hello, &secrets.aes_secret, &mut egress_mac);
 
     let bytes_written = write_packet(&mut stream, &hello_frame)?;
     println!("wrote hello with len {}", bytes_written);
@@ -185,8 +188,29 @@ pub fn do_rlpx_handshake_as_initiator(
 
     // TODO receive hello from recipient
     // Read hello packet.
-    let recipient_hello = read_hello(&mut stream)?;
-    println!("read recipient_hello with len {}", recipient_hello.len());
+    let recipient_hello_frame = read_hello(&mut stream)?;
+    println!(
+        "read recipient_hello with len {}",
+        recipient_hello_frame.len()
+    );
+    let recipient_hello = read_frame(
+        &recipient_hello_frame,
+        &secrets.aes_secret,
+        &mut ingress_mac,
+    );
+    if recipient_hello.msg_id != HELLO_MSG_ID {
+        return Err(HandshakeError::BadRecipientHelloMsgId);
+    }
+    let recipient_hello_data = recipient_hello.to_hello_msg_data();
+    if recipient_hello_data.protocol_version != 5 {
+        return Err(HandshakeError::RecipientHelloP2pProtocolMismatch);
+    }
+    if recipient_hello_data.node_id != recipient_static_pk.serialize_uncompressed() {
+        return Err(HandshakeError::RecipientHelloP2pProtocolMismatch);
+    }
+
+    // TODO verify that the recipient has not disconnected from the TCP/IP connection.
+    // If the recipient disconnected, it means that its igress MAC check.
 
     Ok(secrets)
 }

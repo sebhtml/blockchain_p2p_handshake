@@ -13,6 +13,9 @@ pub enum HandshakeError {
     HmacGenerationError,
     HexError(String),
     RlpDecodeError,
+    BadRecipientHelloMsgId,
+    RecipientHelloP2pProtocolMismatch,
+    RecipientHelloNodeIdMismatch,
 }
 
 impl Display for HandshakeError {
@@ -29,6 +32,13 @@ impl Display for HandshakeError {
             HandshakeError::Secp256k1Error(err) => write!(f, "Secp256k1Error: {}", err),
             HandshakeError::HexError(err) => write!(f, "HexError: {}", err),
             HandshakeError::RlpDecodeError => write!(f, "RlpDecodeError"),
+            HandshakeError::BadRecipientHelloMsgId => write!(f, "BadRecipientHelloMsgId"),
+            HandshakeError::RecipientHelloP2pProtocolMismatch => {
+                write!(f, "RecipientHelloP2pProtocolMismatch")
+            }
+            HandshakeError::RecipientHelloNodeIdMismatch => {
+                write!(f, "RecipientHelloNodeIdMismatch")
+            }
         }
     }
 }
