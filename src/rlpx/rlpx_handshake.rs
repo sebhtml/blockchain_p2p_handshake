@@ -83,33 +83,7 @@ fn write_packet(fd: &mut impl Write, packet: &[u8]) -> Result<usize, HandshakeEr
     Ok(bytes_written)
 }
 
-/// See https://github.com/ethereum/devp2p/blob/master/rlpx.md
-/// ack = ack-size || enc-ack-body
-/// ack-size = size of enc-ack-body, encoded as a big-endian 16-bit integer
-fn read_ack(fd: &mut impl Read) -> Result<Vec<u8>, HandshakeError> {
-    let mut ack_size_bytes = vec![0; 2];
-
-    let bytes_read = fd
-        .read(&mut ack_size_bytes)
-        .map_err(|err| HandshakeError::IOError(err.to_string()))?;
-    if bytes_read == ack_size_bytes.len() {
-        let ack_size = u16::from_be_bytes([ack_size_bytes[0], ack_size_bytes[1]]);
-        let mut enc_ack_body_bytes = vec![0; ack_size as usize];
-        let bytes_read = fd
-            .read(&mut enc_ack_body_bytes)
-            .map_err(|err| HandshakeError::IOError(err.to_string()))?;
-        if bytes_read == enc_ack_body_bytes.len() {
-            let ack = vec![ack_size_bytes, enc_ack_body_bytes].concat();
-            return Ok(ack);
-        }
-    }
-
-    return Err(HandshakeError::IOError(
-        "Could not read from socket the ack message from recipient".into(),
-    ));
-}
-
-fn read_hello(fd: &mut impl Read) -> Result<Vec<u8>, HandshakeError> {
+fn read_bytes_from_tcp(fd: &mut impl Read) -> Result<Vec<u8>, HandshakeError> {
     let mut buffer = vec![0; 2048];
     let bytes_read = fd
         .read(&mut buffer)
@@ -153,7 +127,7 @@ pub fn do_rlpx_handshake_as_initiator(
     }
 
     // Read Ack packet.
-    let ack_packet = read_ack(&mut stream)?;
+    let ack_packet = read_bytes_from_tcp(&mut stream)?;
     println!("read ack_packet with len {}", ack_packet.len());
 
     // ack = ack-size || enc-ack-body
@@ -192,7 +166,7 @@ pub fn do_rlpx_handshake_as_initiator(
 
     // TODO receive hello from recipient
     // Read hello packet.
-    let recipient_hello_frame = read_hello(&mut stream)?;
+    let recipient_hello_frame = read_bytes_from_tcp(&mut stream)?;
     println!(
         "read recipient_hello with len {}",
         recipient_hello_frame.len()
