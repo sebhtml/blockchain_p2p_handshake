@@ -12,8 +12,8 @@ pub const NONCE_LENGTH: usize = 32;
 /// See https://github.com/ethereum/devp2p/blob/master/rlpx.md
 #[derive(Debug)]
 pub struct AuthMessage {
-    pub sig: Vec<u8>,
-    pub initiator_pubk: Vec<u8>,
+    pub sig: [u8; 65],
+    pub initiator_pubk: [u8; 65],
     pub initiator_nonce: [u8; 32],
     pub auth_vsn: u32,
 }
@@ -42,8 +42,8 @@ impl AuthMessage {
         let signature = vec![signature_bytes.to_vec(), vec![recovery_id]].concat();
 
         let auth = AuthMessage {
-            sig: signature,
-            initiator_pubk: initiator_pk.serialize_uncompressed()[1..].to_vec(),
+            sig: signature.try_into().unwrap(),
+            initiator_pubk: initiator_pk.serialize_uncompressed(),
             initiator_nonce: initiator_nonce.to_owned(),
             auth_vsn,
         };
@@ -55,8 +55,8 @@ impl AuthMessage {
 impl IntoRlpList for AuthMessage {
     fn into_rlp_list(&self) -> Vec<u8> {
         let mut auth_body = RlpStream::new_list(4);
-        auth_body.append(&self.sig);
-        auth_body.append(&self.initiator_pubk);
+        auth_body.append(&self.sig.as_slice());
+        auth_body.append(&self.initiator_pubk[1..].to_vec());
         auth_body.append(&self.initiator_nonce.as_slice());
         auth_body.append(&self.auth_vsn);
         let auth_body = auth_body.out();
