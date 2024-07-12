@@ -6,13 +6,14 @@ use std::{
     str::FromStr,
 };
 
-use crate::{
+use crate::rlpx::{
+    ack_message::AckMessage,
+    ecies::ecies_decrypt,
     p2p::{
         frame::{read_frame, write_frame},
         mac::CommMacState,
         message::{Hello, Message, HELLO_MSG_ID},
     },
-    rlpx::{ack_message::AckMessage, ecies::ecies_decrypt},
 };
 
 use super::{

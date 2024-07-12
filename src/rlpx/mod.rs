@@ -4,6 +4,7 @@ pub mod ecies;
 pub mod enode;
 pub mod handshake_error;
 pub mod nonce;
+pub mod p2p;
 pub mod rlpx_handshake;
 pub mod secrets;
 

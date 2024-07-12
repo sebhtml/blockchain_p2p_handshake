@@ -5,7 +5,6 @@
 use clap::Parser;
 use rlpx::{enode::ENode, rlpx_handshake::do_rlpx_handshake_as_initiator};
 use secp256k1::generate_keypair;
-pub mod p2p;
 pub mod rlpx;
 
 #[derive(Parser, Debug)]
