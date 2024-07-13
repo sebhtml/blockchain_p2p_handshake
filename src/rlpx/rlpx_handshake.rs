@@ -1,12 +1,15 @@
 use crate::rlpx::{
-    ecies_handshake::auth_message::{prepare_auth_packet, AuthMessage},
-    p2p::mac::MacState,
-};
-use crate::rlpx::{
     ecies_handshake::{
         ack_message::AckMessage, ecies::ecies_decrypt, nonce::make_nonce, secrets::Secrets,
     },
     p2p::{frame::read_frame, message::HELLO_MSG_ID},
+};
+use crate::rlpx::{
+    ecies_handshake::{
+        auth_message::{prepare_auth_packet, AuthMessage},
+        xor,
+    },
+    p2p::mac::MacState,
 };
 
 use secp256k1::{generate_keypair, PublicKey, SecretKey};
@@ -120,24 +123,13 @@ pub fn do_rlpx_handshake_as_initiator(
 
     // Initiate egress and ingress MAC states.
 
-    let egress_xor: Vec<u8> = secrets
-        .mac_secret
-        .iter()
-        .zip(recipient_nonce.iter())
-        .map(|(&x1, &x2)| x1 ^ x2)
-        .collect();
+    let egress_xor = xor(&secrets.mac_secret, recipient_nonce);
     let mut egress_mac = MacState::new(&secrets.mac_secret);
     egress_mac.update(&egress_xor);
     egress_mac.update(&auth_packet);
 
-    let ingress_xor: Vec<u8> = secrets
-        .mac_secret
-        .iter()
-        .zip(initiator_nonce.iter())
-        .map(|(&x1, &x2)| x1 ^ x2)
-        .collect();
     let mut ingress_mac = MacState::new(&secrets.mac_secret);
-    ingress_mac.update(&ingress_xor);
+    ingress_mac.update(&xor(&secrets.mac_secret, &initiator_nonce));
     ingress_mac.update(&ack_packet);
 
     /*

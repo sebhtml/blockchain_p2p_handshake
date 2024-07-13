@@ -4,6 +4,8 @@ use aes::{
 };
 use sha3::{Digest, Keccak256};
 
+use crate::rlpx::ecies_handshake::xor;
+
 pub struct FrameMacTags {
     pub header_mac: [u8; 16],
     pub frame_mac: [u8; 16],
@@ -56,12 +58,7 @@ impl MacState {
         println!("aes_mac len {}", aes_mac.len());
         println!("header_ciphertext len {}", header_ciphertext.len());
 
-        let header_mac_seed: Vec<u8> = aes_mac
-            .iter()
-            .zip(header_ciphertext.iter())
-            .map(|(&x1, &x2)| x1 ^ x2)
-            .collect();
-
+        let header_mac_seed: Vec<u8> = xor(&aes_mac, header_ciphertext);
         self.state.update(&header_mac_seed);
 
         let header_mac = self.mac();

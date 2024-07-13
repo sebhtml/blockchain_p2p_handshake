@@ -4,7 +4,10 @@ use secp256k1::{ecdh::SharedSecret, Message, PublicKey, Secp256k1, SecretKey};
 
 use crate::rlpx::{handshake_error::HandshakeError, IntoRlpList};
 
-use super::ecies::{ecies_encrypt, ECIES_IV_LEN, ECIES_PUBK_LEN, ECIES_TAG_LEN};
+use super::{
+    ecies::{ecies_encrypt, ECIES_IV_LEN, ECIES_PUBK_LEN, ECIES_TAG_LEN},
+    xor,
+};
 
 pub const NONCE_LENGTH: usize = 32;
 
@@ -27,16 +30,12 @@ impl AuthMessage {
     ) -> Result<AuthMessage, HandshakeError> {
         let auth_vsn = 4;
 
-        let shared_secret = SharedSecret::new(&recipient_pk, &initiator_sk)
-            .secret_bytes()
-            .to_vec();
-
-        let msg: [u8; 32] = shared_secret.try_into().unwrap();
-        let msg = Message::from_digest(msg);
+        let shared_secret = SharedSecret::new(&recipient_pk, &initiator_sk).secret_bytes();
+        let xored: [u8; 32] = xor(&shared_secret, initiator_nonce).try_into().unwrap();
+        let msg = Message::from_digest(xored);
 
         let context = Secp256k1::new();
-        let recoverable_signature =
-            context.sign_ecdsa_recoverable_with_noncedata(&msg, &initiator_sk, initiator_nonce);
+        let recoverable_signature = context.sign_ecdsa_recoverable(&msg, &initiator_sk);
         let (recovery_id, signature_bytes) = recoverable_signature.serialize_compact();
         let recovery_id = u8::try_from(recovery_id.to_i32()).unwrap();
         let signature = vec![signature_bytes.to_vec(), vec![recovery_id]].concat();
