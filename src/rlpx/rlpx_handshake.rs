@@ -143,7 +143,7 @@ pub fn do_rlpx_handshake_as_initiator(
             .try_into()
             .unwrap(),
     );
-    let hello_frame = write_frame(&hello, &secrets.aes_secret, &mut egress_mac);
+    let _hello_frame = write_frame(&hello, &secrets.aes_secret, &mut egress_mac);
 
     /* TODO send hello to recipient
        let bytes_written = write_bytes(&mut stream, &hello_frame)?;
@@ -153,23 +153,24 @@ pub fn do_rlpx_handshake_as_initiator(
        }
     */
 
-    // TODO receive hello from recipient
-    // Read hello packet.
+    // Receive hello from recipient
+
     let recipient_hello_frame = read_bytes(&mut stream)?;
-    println!(
-        "read recipient_hello with len {}",
-        recipient_hello_frame.len()
-    );
+
     let recipient_hello = read_frame(
         &recipient_hello_frame,
         &secrets.aes_secret,
         &mut ingress_mac,
     )?;
+
+    // Check message id
     if recipient_hello.msg_id != HELLO_MSG_ID {
         return Err(HandshakeError::BadRecipientHelloMsgId);
     }
     let recipient_hello_data = recipient_hello.to_hello_msg_data()?;
     println!("recipient_hello_data {:?}", recipient_hello_data);
+
+    // Check protocol version
     if recipient_hello_data.protocol_version != 5 {
         return Err(HandshakeError::RecipientHelloP2pProtocolMismatch);
     }

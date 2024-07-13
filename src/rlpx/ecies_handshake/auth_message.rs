@@ -56,6 +56,7 @@ impl AuthMessage {
     }
 }
 
+// TODO use RlpEncodable and RlpDecodable.
 impl IntoRlpList for AuthMessage {
     fn into_rlp_list(&self) -> Vec<u8> {
         let mut auth_body = RlpStream::new_list(4);

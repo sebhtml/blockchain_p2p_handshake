@@ -16,6 +16,7 @@ pub enum HandshakeError {
     BadRecipientHelloMsgId,
     RecipientHelloP2pProtocolMismatch,
     RecipientHelloNodeIdMismatch,
+    RecipientDoesNotSupportP2pCapability,
     RecipientDisconnected,
     RecipientReturnedUndesiredBytes,
 }
@@ -43,6 +44,9 @@ impl Display for HandshakeError {
             }
             HandshakeError::RecipientDisconnected => {
                 write!(f, "RecipientDisconnected")
+            }
+            HandshakeError::RecipientDoesNotSupportP2pCapability => {
+                write!(f, "RecipientDoesNotSupportP2pCapability")
             }
             HandshakeError::RecipientReturnedUndesiredBytes => {
                 write!(f, "RecipientReturnedUndesiredBytes")
