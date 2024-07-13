@@ -26,13 +26,20 @@ impl MacState {
         self.state.update(data)
     }
 
-    pub fn digest_frame(
+    pub fn mac(&self) -> [u8; 16] {
+        self.state.clone().finalize().to_vec()[..16]
+            .to_vec()
+            .try_into()
+            .unwrap()
+    }
+
+    pub fn update_with_frame(
         &mut self,
         header_ciphertext: &[u8; 16],
         _frame_ciphertext: &[u8],
     ) -> FrameMacTags {
         // Process header
-        let mac = &self.state.clone().finalize().to_vec()[..16];
+        let mac = self.mac();
 
         let mac_secret = self.mac_secret.as_slice();
         let cipher = Aes256Enc::new_from_slice(mac_secret.into()).unwrap();
@@ -56,10 +63,11 @@ impl MacState {
             .collect();
 
         self.state.update(&header_mac_seed);
-        let header_mac = &self.state.clone().finalize().to_vec()[..16];
+
+        let header_mac = self.mac();
 
         let tags = FrameMacTags {
-            header_mac: header_mac.try_into().unwrap(),
+            header_mac: header_mac,
             frame_mac: Default::default(),
         };
         tags
