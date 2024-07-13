@@ -109,18 +109,9 @@ pub fn do_rlpx_handshake_as_initiator(
 
     // Convert arc-body to AckMessage.
     let ack = AckMessage::from_rlp_list(&ack_body)?;
-    println!(
-        "Got ack.recipient_ephemeral_pubk : {:?}",
-        hex::encode(ack.recipient_ephemeral_pubk)
-    );
     let remote_ephemeral_pk = PublicKey::from_slice(&ack.recipient_ephemeral_pubk).unwrap();
-    //let tmp = remote_ephemeral_pk.serialize_uncompressed();
-    //println!("Got tmp : {:?}", hex::encode(&tmp));
 
     let recipient_nonce = &ack.recipient_nonce;
-
-    println!("Got remote_ephemeral_pk : {:?}", remote_ephemeral_pk);
-    println!("Got recipient_nonce : {:?}", recipient_nonce);
 
     // Generate session secrets.
     let secrets = Secrets::new(

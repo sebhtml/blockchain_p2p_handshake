@@ -74,8 +74,6 @@ fn generate_frame_cipher_texts(
     let mut header_ciphertext = header.to_vec();
     cipher.apply_keystream(&mut header_ciphertext);
 
-    println!("header_ciphertext len: {}", header_ciphertext.len());
-
     FrameCipherTexts {
         header_ciphertext: header_ciphertext.try_into().unwrap(),
         frame_ciphertext,
@@ -121,13 +119,9 @@ pub fn read_frame(
 
     // Do the MAC check
     let mac_tags = ingress_mac.update_with_ciphertexts(&header_ciphertext, frame_ciphertext);
-    println!("Validating header_mac");
-    println!("header_mac from ingress message {:?}", header_mac);
-    println!("header_mac from ingress_mac {:?}", mac_tags.header_mac);
     if header_mac != mac_tags.header_mac {
         return Err(HandshakeError::HmacValidationFailure);
     }
-    println!("Validating frame_mac");
     if frame_mac != mac_tags.frame_mac {
         return Err(HandshakeError::HmacValidationFailure);
     }
@@ -141,17 +135,15 @@ pub fn read_frame(
 
     let mut header = header_ciphertext.to_vec();
     cipher.apply_keystream(&mut header);
-    println!("header {:?}", header);
 
     // frame-ciphertext = aes(aes-secret, frame-data || frame-padding)
     let mut frame_data_and_padding = frame_ciphertext.to_vec();
     cipher.apply_keystream(&mut frame_data_and_padding);
 
     // frame-data = msg-id || msg-data
-
-    println!("frame_data_and_padding {:?}", frame_data_and_padding);
     let msg_id = rlp::decode(&frame_data_and_padding).unwrap();
-    println!("msg_id: {}", msg_id);
+
+    // TODO message_data.
     let msg_data = vec![];
 
     let message = Message { msg_id, msg_data };

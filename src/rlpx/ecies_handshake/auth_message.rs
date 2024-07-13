@@ -31,7 +31,6 @@ impl AuthMessage {
         recipient_static_pk: &PublicKey,
     ) -> Result<AuthMessage, HandshakeError> {
         let shared_secret = ecdh_agree(initiator_static_sk, recipient_static_pk);
-        println!("static shared secret {}", hex::encode(&shared_secret));
         let xored: [u8; 32] = xor(&shared_secret, initiator_nonce).try_into().unwrap();
         let msg = Message::from_digest(xored);
 

@@ -110,7 +110,6 @@ pub fn ecies_decrypt(
     enc_ack_body: &[u8],
     auth_data: &[u8],
 ) -> Result<Vec<u8>, HandshakeError> {
-    println!("enc_ack_body {}", hex::encode(&enc_ack_body));
     let (recipient_ephemeral_pk, rest) = enc_ack_body.split_at(65);
     let (iv, rest) = rest.split_at(16);
     let (encrypted_message, msg_hmac_tag) = rest.split_at(rest.len() - 32);
@@ -121,11 +120,8 @@ pub fn ecies_decrypt(
     let mac_key = &keys.k_m;
 
     let tag = generate_hmac_tag(mac_key, &iv, &encrypted_message, auth_data)?;
-    println!("tag {}", hex::encode(&tag));
-    println!("msg_hmac_tag {}", hex::encode(&msg_hmac_tag));
 
     if &tag != msg_hmac_tag {
-        println!("ecies_decrypt MAC failed !");
         return Err(HandshakeError::HmacValidationFailure);
     }
 

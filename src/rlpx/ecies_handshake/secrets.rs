@@ -23,7 +23,7 @@ impl Secrets {
     ) -> Self {
         let static_shared_secret = ecdh_agree(static_sk, remote_static_pk);
         let ephemeral_key = ecdh_agree(ephemeral_sk, remote_ephemeral_pk);
-        println!("ephemeral_key {}", hex::encode(&ephemeral_key));
+
         //Hash the nonces
         let nonces_hash = {
             let mut hasher = Keccak256::new();
