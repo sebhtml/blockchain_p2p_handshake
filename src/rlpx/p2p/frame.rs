@@ -143,9 +143,13 @@ pub fn read_frame(
     // frame-data = msg-id || msg-data
     let msg_id = rlp::decode(&frame_data_and_padding).unwrap();
 
-    // TODO message_data.
-    let msg_data = vec![];
+    // Re-encode the msg_id to know how many RLP bytes it needs.
+    let encoded = rlp::encode(&msg_id);
+    let (_, msg_data) = frame_data_and_padding.split_at(encoded.len());
 
-    let message = Message { msg_id, msg_data };
+    let message = Message {
+        msg_id,
+        msg_data: msg_data.to_owned(),
+    };
     Ok(message)
 }

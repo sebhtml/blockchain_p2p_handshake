@@ -165,11 +165,9 @@ pub fn do_rlpx_handshake_as_initiator(
     if recipient_hello.msg_id != HELLO_MSG_ID {
         return Err(HandshakeError::BadRecipientHelloMsgId);
     }
-    let recipient_hello_data = recipient_hello.to_hello_msg_data();
+    let recipient_hello_data = recipient_hello.to_hello_msg_data()?;
+    println!("recipient_hello_data {:?}", recipient_hello_data);
     if recipient_hello_data.protocol_version != 5 {
-        return Err(HandshakeError::RecipientHelloP2pProtocolMismatch);
-    }
-    if recipient_hello_data.node_id != recipient_static_pk.serialize_uncompressed() {
         return Err(HandshakeError::RecipientHelloP2pProtocolMismatch);
     }
 

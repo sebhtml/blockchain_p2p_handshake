@@ -1,12 +1,13 @@
-use rlp::RlpStream;
+use rlp::{RlpDecodable, RlpEncodable, RlpStream};
 
-use crate::rlpx::IntoRlpList;
+use crate::rlpx::{handshake_error::HandshakeError, IntoRlpList};
 
 pub struct Message {
     pub msg_id: u64,
     pub msg_data: Vec<u8>,
 }
 
+#[derive(Debug, RlpEncodable, RlpDecodable)]
 pub struct Capability {
     pub cap: String,
     pub version: u32,
@@ -14,17 +15,18 @@ pub struct Capability {
 
 pub const HELLO_MSG_ID: u64 = 0;
 
+#[derive(Debug, RlpEncodable, RlpDecodable)]
 pub struct HelloMessageData {
     // TODO validate type of integer
     pub protocol_version: u32,
     pub client_id: String,
     pub capabilities: Vec<Capability>,
-    pub listen_port: u32,
-    pub node_id: [u8; 65],
+    pub listen_port: u16,
+    pub node_id: Vec<u8>,
 }
 
 impl HelloMessageData {
-    pub fn new(node_id: &[u8; 65]) -> Self {
+    pub fn new(node_id: &[u8; 64]) -> Self {
         Self {
             protocol_version: 5,
             client_id: "sebhtml/blockchain_p2p_handshake/0.0.1".into(),
@@ -33,7 +35,7 @@ impl HelloMessageData {
                 version: 5,
             }],
             listen_port: 0,
-            node_id: node_id.to_owned(),
+            node_id: node_id.to_vec(),
         }
     }
 }
@@ -64,11 +66,11 @@ impl IntoRlpList for HelloMessageData {
 }
 
 pub trait Hello {
-    fn hello(node_id: &[u8; 65]) -> Message;
+    fn hello(node_id: &[u8; 64]) -> Message;
 }
 
 impl Hello for Message {
-    fn hello(node_id: &[u8; 65]) -> Message {
+    fn hello(node_id: &[u8; 64]) -> Message {
         let hello = HelloMessageData::new(node_id);
         let message_data = hello.into_rlp_list();
 
@@ -80,19 +82,10 @@ impl Hello for Message {
 }
 
 impl Message {
-    pub fn to_hello_msg_data(&self) -> HelloMessageData {
-        // TODO decode msg_data into HelloMessageData
-        let protocol_version = 99;
-        let client_id = "TODO".into();
-        let capabilities = vec![];
-        let listen_port = 99;
-        let node_id = vec![0; 65].try_into().unwrap();
-        HelloMessageData {
-            protocol_version,
-            client_id,
-            capabilities,
-            listen_port,
-            node_id,
-        }
+    pub fn to_hello_msg_data(&self) -> Result<HelloMessageData, HandshakeError> {
+        // Decode msg_data into HelloMessageData
+        let msg_data = &self.msg_data;
+        let hello_msg_data: HelloMessageData = rlp::decode(msg_data).unwrap();
+        Ok(hello_msg_data)
     }
 }
