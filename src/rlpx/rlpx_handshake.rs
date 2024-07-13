@@ -61,21 +61,23 @@ pub fn do_rlpx_handshake_as_initiator(
     let mut stream = TcpStream::connect(socket).unwrap();
     let mut rng = secp256k1::rand::thread_rng();
 
-    let (initiator_ephemeral_sk, initiator_ephemeral_pk) = generate_keypair(&mut rng);
-
     let recipient_static_pk: PublicKey = recipient_enode.try_into()?;
     let initiator_nonce = make_nonce();
+
+    let (initiator_ephemeral_sk, initiator_ephemeral_pk) = generate_keypair(&mut rng);
 
     // Generate auth packet.
     let auth_message = AuthMessage::try_new(
         &initiator_nonce,
         initiator_static_sk,
         initiator_static_pk,
+        &initiator_ephemeral_sk,
+        &initiator_ephemeral_pk,
         &recipient_static_pk,
     )?;
     let auth_packet = prepare_auth_packet(
-        &initiator_ephemeral_sk,
-        &initiator_ephemeral_pk,
+        &initiator_static_sk,
+        &initiator_static_pk,
         &recipient_static_pk,
         &auth_message,
     )?;
@@ -88,12 +90,22 @@ pub fn do_rlpx_handshake_as_initiator(
 
     // Read Ack packet.
     let ack_packet = read_bytes(&mut stream)?;
+
+    if ack_packet.len() == 0 {
+        return Err(HandshakeError::RecipientDisconnected);
+    }
+
     println!("read ack_packet with len {}", ack_packet.len());
 
     // ack = ack-size || enc-ack-body
     // ack-size = size of enc-ack-body, encoded as a big-endian 16-bit integer
     let (ack_size, enc_ack_body) = ack_packet.split_at(2);
-    let ack_body = ecies_decrypt(&initiator_static_sk, &enc_ack_body, &ack_size)?;
+    let ack_body = ecies_decrypt(
+        &initiator_static_sk,
+        &recipient_static_pk,
+        &enc_ack_body,
+        &ack_size,
+    )?;
 
     // Convert arc-body to AckMessage.
     let ack = AckMessage::from_rlp_list(&ack_body)?;
@@ -123,11 +135,13 @@ pub fn do_rlpx_handshake_as_initiator(
 
     // Initiate egress and ingress MAC states.
 
+    /*
     let egress_xor = xor(&secrets.mac_secret, recipient_nonce);
     let mut egress_mac = MacState::new(&secrets.mac_secret);
     egress_mac.update(&egress_xor);
     egress_mac.update(&auth_packet);
 
+     */
     let mut ingress_mac = MacState::new(&secrets.mac_secret);
     ingress_mac.update(&xor(&secrets.mac_secret, &initiator_nonce));
     ingress_mac.update(&ack_packet);

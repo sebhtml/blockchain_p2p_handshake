@@ -5,7 +5,7 @@ use secp256k1::{Message, PublicKey, Secp256k1, SecretKey};
 use crate::rlpx::{handshake_error::HandshakeError, IntoRlpList};
 
 use super::{
-    ecies::{ecdh_agree, ecies_encrypt, ECIES_IV_LEN, ECIES_PUBK_LEN, ECIES_TAG_LEN},
+    ecies::{ecdh_agree, ecies_encrypt},
     xor,
 };
 
@@ -24,24 +24,28 @@ pub struct AuthMessage {
 impl AuthMessage {
     pub fn try_new(
         initiator_nonce: &[u8; 32],
-        initiator_sk: &SecretKey,
-        initiator_pk: &PublicKey,
-        recipient_pk: &PublicKey,
+        initiator_static_sk: &SecretKey,
+        initiator_static_pk: &PublicKey,
+        initiator_ephemeral_sk: &SecretKey,
+        _initiator_ephemeral_pk: &PublicKey,
+        recipient_static_pk: &PublicKey,
     ) -> Result<AuthMessage, HandshakeError> {
-        let auth_vsn = 4;
-        let shared_secret = ecdh_agree(initiator_sk, recipient_pk);
+        let shared_secret = ecdh_agree(initiator_static_sk, recipient_static_pk);
+        println!("static shared secret {}", hex::encode(&shared_secret));
         let xored: [u8; 32] = xor(&shared_secret, initiator_nonce).try_into().unwrap();
         let msg = Message::from_digest(xored);
 
         let context = Secp256k1::new();
-        let recoverable_signature = context.sign_ecdsa_recoverable(&msg, &initiator_sk);
+        let recoverable_signature = context.sign_ecdsa_recoverable(&msg, &initiator_ephemeral_sk);
         let (recovery_id, signature_bytes) = recoverable_signature.serialize_compact();
         let recovery_id = u8::try_from(recovery_id.to_i32()).unwrap();
         let signature = vec![signature_bytes.to_vec(), vec![recovery_id]].concat();
 
+        let auth_vsn = 4;
+
         let auth = AuthMessage {
             sig: signature.try_into().unwrap(),
-            initiator_pubk: initiator_pk.serialize_uncompressed()[1..]
+            initiator_pubk: initiator_static_pk.serialize_uncompressed()[1..]
                 .try_into()
                 .unwrap(),
             initiator_nonce: initiator_nonce.to_owned(),
@@ -66,7 +70,7 @@ impl IntoRlpList for AuthMessage {
 
 pub fn prepare_auth_packet(
     initiator_ephemeral_sk: &SecretKey,
-    initiator_ephemeral_pk: &PublicKey,
+    initiator_static_pk: &PublicKey,
     recipient_static_pk: &PublicKey,
     auth_message: &AuthMessage,
 ) -> Result<Vec<u8>, HandshakeError> {
@@ -80,11 +84,11 @@ pub fn prepare_auth_packet(
     let auth_body = [auth_body.to_vec(), random_bytes].concat();
 
     // Encrypt
-    let auth_size: usize = ECIES_PUBK_LEN + ECIES_IV_LEN + auth_body.len() + ECIES_TAG_LEN;
+    let auth_size: usize = 65 /* pk */ + 16 /* iv */ + auth_body.len() + 32 /* tag */;
     let auth_size = u16::try_from(auth_size).unwrap();
     let auth_size = auth_size.to_be_bytes();
     let enc_auth_body = &ecies_encrypt(
-        initiator_ephemeral_pk,
+        initiator_static_pk,
         initiator_ephemeral_sk,
         &recipient_static_pk,
         &auth_body,
