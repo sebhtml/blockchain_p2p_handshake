@@ -1,8 +1,12 @@
+use crate::rlpx::p2p::frame::write_frame;
 use crate::rlpx::{
     ecies_handshake::{
         ack_message::AckMessage, ecies::ecies_decrypt, nonce::make_nonce, secrets::Secrets,
     },
-    p2p::{frame::read_frame, message::HELLO_MSG_ID},
+    p2p::{
+        frame::read_frame,
+        message::{Hello, Message, HELLO_MSG_ID},
+    },
 };
 use crate::rlpx::{
     ecies_handshake::{
@@ -51,6 +55,8 @@ fn read_bytes(fd: &mut impl Read) -> Result<Vec<u8>, HandshakeError> {
     Ok(buffer[0..bytes_read].to_vec())
 }
 
+// TODO add struct EthereumNode
+
 /// See RLPx : https://github.com/ethereum/devp2p/blob/master/rlpx.md
 pub fn do_rlpx_handshake_as_initiator(
     initiator_static_sk: &SecretKey,
@@ -75,31 +81,29 @@ pub fn do_rlpx_handshake_as_initiator(
         &initiator_ephemeral_pk,
         &recipient_static_pk,
     )?;
-    let auth_packet = prepare_auth_packet(
+    let auth = prepare_auth_packet(
         &initiator_static_sk,
         &initiator_static_pk,
         &recipient_static_pk,
         &auth_message,
     )?;
 
-    let bytes_written = write_bytes(&mut stream, &auth_packet)?;
-    println!("wrote auth with len {}", bytes_written);
-    if bytes_written != auth_packet.len() {
+    let bytes_written = write_bytes(&mut stream, &auth)?;
+
+    if bytes_written != auth.len() {
         return Err(HandshakeError::IOError("bad bytes_written".into()));
     }
 
     // Read Ack packet.
-    let ack_packet = read_bytes(&mut stream)?;
+    let ack = read_bytes(&mut stream)?;
 
-    if ack_packet.len() == 0 {
+    if ack.len() == 0 {
         return Err(HandshakeError::RecipientDisconnected);
     }
 
-    println!("read ack_packet with len {}", ack_packet.len());
-
     // ack = ack-size || enc-ack-body
     // ack-size = size of enc-ack-body, encoded as a big-endian 16-bit integer
-    let (ack_size, enc_ack_body) = ack_packet.split_at(2);
+    let (ack_size, enc_ack_body) = ack.split_at(2);
     let ack_body = ecies_decrypt(
         &initiator_static_sk,
         &recipient_static_pk,
@@ -108,10 +112,10 @@ pub fn do_rlpx_handshake_as_initiator(
     )?;
 
     // Convert arc-body to AckMessage.
-    let ack = AckMessage::from_rlp_list(&ack_body)?;
-    let remote_ephemeral_pk = PublicKey::from_slice(&ack.recipient_ephemeral_pubk).unwrap();
+    let ack_message = AckMessage::from_rlp_list(&ack_body)?;
+    let remote_ephemeral_pk = PublicKey::from_slice(&ack_message.recipient_ephemeral_pubk).unwrap();
 
-    let recipient_nonce = &ack.recipient_nonce;
+    let recipient_nonce = &ack_message.recipient_nonce;
 
     // Generate session secrets.
     let secrets = Secrets::new(
@@ -122,32 +126,31 @@ pub fn do_rlpx_handshake_as_initiator(
         recipient_nonce,
         &initiator_nonce,
     );
-    println!("Got secrets");
 
-    // Initiate egress and ingress MAC states.
+    // Initiate egress
+    let mut egress_mac = MacState::new(&secrets.mac_secret);
+    egress_mac.update(&xor(&secrets.mac_secret, recipient_nonce));
+    egress_mac.update(&auth);
 
-    /*
-       let egress_xor = xor(&secrets.mac_secret, recipient_nonce);
-       let mut egress_mac = MacState::new(&secrets.mac_secret);
-       egress_mac.update(&egress_xor);
-       egress_mac.update(&auth_packet);
-    */
-
+    // Ingress MAC states.
     let mut ingress_mac = MacState::new(&secrets.mac_secret);
     ingress_mac.update(&xor(&secrets.mac_secret, &initiator_nonce));
-    ingress_mac.update(&ack_packet);
+    ingress_mac.update(&ack);
 
-    /*
-    TODO uncomment
-    // TODO send Hello to recipient
-    let hello = Message::hello(&initiator_static_pk.serialize_uncompressed());
+    // Send Hello to recipient
+    let hello = Message::hello(
+        &initiator_static_pk.serialize_uncompressed()[1..]
+            .try_into()
+            .unwrap(),
+    );
     let hello_frame = write_frame(&hello, &secrets.aes_secret, &mut egress_mac);
 
-    let bytes_written = write_bytes(&mut stream, &hello_frame)?;
-    println!("wrote hello with len {}", bytes_written);
-    if bytes_written != hello_frame.len() {
-        return Err(HandshakeError::IOError("bad bytes_written".into()));
-    }
+    /* TODO send hello to recipient
+       let bytes_written = write_bytes(&mut stream, &hello_frame)?;
+       println!("wrote hello with len {}", bytes_written);
+       if bytes_written != hello_frame.len() {
+           return Err(HandshakeError::IOError("bad bytes_written".into()));
+       }
     */
 
     // TODO receive hello from recipient

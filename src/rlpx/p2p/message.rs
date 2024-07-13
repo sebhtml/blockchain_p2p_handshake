@@ -1,6 +1,6 @@
-use rlp::{RlpDecodable, RlpEncodable, RlpStream};
+use rlp::{RlpDecodable, RlpEncodable};
 
-use crate::rlpx::{handshake_error::HandshakeError, IntoRlpList};
+use crate::rlpx::handshake_error::HandshakeError;
 
 pub struct Message {
     pub msg_id: u64,
@@ -17,7 +17,6 @@ pub const HELLO_MSG_ID: u64 = 0;
 
 #[derive(Debug, RlpEncodable, RlpDecodable)]
 pub struct HelloMessageData {
-    // TODO validate type of integer
     pub protocol_version: u32,
     pub client_id: String,
     pub capabilities: Vec<Capability>,
@@ -40,43 +39,19 @@ impl HelloMessageData {
     }
 }
 
-impl IntoRlpList for HelloMessageData {
-    fn into_rlp_list(&self) -> Vec<u8> {
-        let mut rlp_stream = RlpStream::new_list(4);
-
-        rlp_stream.append(&self.protocol_version);
-
-        rlp_stream.append(&self.client_id);
-
-        let mut cap_rlp_stream = RlpStream::new_list(self.capabilities.len());
-        for cap in self.capabilities.iter() {
-            let mut cap_p2p_rlp_stream = RlpStream::new_list(2);
-            cap_p2p_rlp_stream.append(&cap.cap);
-            cap_p2p_rlp_stream.append(&cap.version);
-            cap_rlp_stream.append(&cap_p2p_rlp_stream.out());
-        }
-
-        rlp_stream.append(&self.listen_port);
-
-        rlp_stream.append(&self.node_id.to_vec());
-
-        let message_data = rlp_stream.out().to_vec();
-        message_data
-    }
-}
-
 pub trait Hello {
     fn hello(node_id: &[u8; 64]) -> Message;
 }
 
+// TODO move Hello things to hello.rs
 impl Hello for Message {
     fn hello(node_id: &[u8; 64]) -> Message {
-        let hello = HelloMessageData::new(node_id);
-        let message_data = hello.into_rlp_list();
+        let hello_msg_data = HelloMessageData::new(node_id);
+        let message_data = rlp::encode(&hello_msg_data);
 
         Message {
             msg_id: HELLO_MSG_ID,
-            msg_data: message_data,
+            msg_data: message_data.into(),
         }
     }
 }
