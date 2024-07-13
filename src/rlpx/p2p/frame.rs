@@ -89,7 +89,7 @@ pub fn write_frame(msg: &Message, aes_secret: &[u8; 32], egress_mac: &mut MacSta
     let header_ciphertext = &cipher_texts.header_ciphertext;
     let frame_ciphertext = &cipher_texts.frame_ciphertext;
 
-    let mac_tags = egress_mac.update_with_frame(header_ciphertext, frame_ciphertext);
+    let mac_tags = egress_mac.update_with_ciphertexts(header_ciphertext, frame_ciphertext);
     let header_mac = &mac_tags.header_mac;
     let frame_mac = &mac_tags.frame_mac;
 
@@ -120,7 +120,7 @@ pub fn read_frame(
     let header_mac: [u8; 16] = header_mac.try_into().unwrap();
 
     // Do the MAC check
-    let mac_tags = ingress_mac.update_with_frame(&header_ciphertext, frame_ciphertext);
+    let mac_tags = ingress_mac.update_with_ciphertexts(&header_ciphertext, frame_ciphertext);
     println!("Validating header_mac");
     println!("header_mac from ingress message {:?}", header_mac);
     println!("header_mac from ingress_mac {:?}", mac_tags.header_mac);

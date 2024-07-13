@@ -136,12 +136,12 @@ pub fn do_rlpx_handshake_as_initiator(
     // Initiate egress and ingress MAC states.
 
     /*
-    let egress_xor = xor(&secrets.mac_secret, recipient_nonce);
-    let mut egress_mac = MacState::new(&secrets.mac_secret);
-    egress_mac.update(&egress_xor);
-    egress_mac.update(&auth_packet);
+       let egress_xor = xor(&secrets.mac_secret, recipient_nonce);
+       let mut egress_mac = MacState::new(&secrets.mac_secret);
+       egress_mac.update(&egress_xor);
+       egress_mac.update(&auth_packet);
+    */
 
-     */
     let mut ingress_mac = MacState::new(&secrets.mac_secret);
     ingress_mac.update(&xor(&secrets.mac_secret, &initiator_nonce));
     ingress_mac.update(&ack_packet);

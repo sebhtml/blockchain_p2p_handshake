@@ -35,12 +35,22 @@ impl MacState {
             .unwrap()
     }
 
-    pub fn update_with_frame(
+    pub fn update_with_ciphertexts(
         &mut self,
         header_ciphertext: &[u8; 16],
-        _frame_ciphertext: &[u8],
+        frame_ciphertext: &[u8],
     ) -> FrameMacTags {
-        // Process header
+        let header_mac = self.update_with_header_ciphertext(header_ciphertext);
+        let frame_mac = self.update_with_frame_ciphertext(frame_ciphertext);
+
+        let tags = FrameMacTags {
+            header_mac,
+            frame_mac,
+        };
+        tags
+    }
+
+    fn update_with_header_ciphertext(&mut self, header_ciphertext: &[u8; 16]) -> [u8; 16] {
         let mac = self.mac();
 
         let mac_secret = self.mac_secret.as_slice();
@@ -48,25 +58,36 @@ impl MacState {
 
         let mut aes_mac = mac.to_vec();
         let msg_len = aes_mac.len();
-        println!("msg_len {}", msg_len);
-        println!("input {:?}", mac);
+
         cipher
             .encrypt_padded::<NoPadding>(&mut aes_mac, msg_len)
             .unwrap();
-        println!("output {:?}", aes_mac);
-
-        println!("aes_mac len {}", aes_mac.len());
-        println!("header_ciphertext len {}", header_ciphertext.len());
 
         let header_mac_seed: Vec<u8> = xor(&aes_mac, header_ciphertext);
-        self.state.update(&header_mac_seed);
-
+        self.update(&header_mac_seed);
         let header_mac = self.mac();
+        header_mac
+    }
 
-        let tags = FrameMacTags {
-            header_mac: header_mac,
-            frame_mac: Default::default(),
-        };
-        tags
+    fn update_with_frame_ciphertext(&mut self, frame_ciphertext: &[u8]) -> [u8; 16] {
+        self.update(frame_ciphertext);
+
+        let mac = self.mac();
+        let mac_secret = self.mac_secret.as_slice();
+        let cipher = Aes256Enc::new_from_slice(mac_secret.into()).unwrap();
+
+        let mut aes_mac = mac.to_vec();
+        let msg_len = aes_mac.len();
+
+        cipher
+            .encrypt_padded::<NoPadding>(&mut aes_mac, msg_len)
+            .unwrap();
+
+        let mac = self.mac();
+
+        let frame_mac_seed: Vec<u8> = xor(&aes_mac, &mac);
+        self.update(&frame_mac_seed);
+        let frame_mac = self.mac();
+        frame_mac
     }
 }
