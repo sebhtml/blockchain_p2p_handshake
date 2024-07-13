@@ -1,11 +1,11 @@
 use rand::Rng;
 use rlp::RlpStream;
-use secp256k1::{ecdh::SharedSecret, Message, PublicKey, Secp256k1, SecretKey};
+use secp256k1::{Message, PublicKey, Secp256k1, SecretKey};
 
 use crate::rlpx::{handshake_error::HandshakeError, IntoRlpList};
 
 use super::{
-    ecies::{ecies_encrypt, ECIES_IV_LEN, ECIES_PUBK_LEN, ECIES_TAG_LEN},
+    ecies::{ecdh_agree, ecies_encrypt, ECIES_IV_LEN, ECIES_PUBK_LEN, ECIES_TAG_LEN},
     xor,
 };
 
@@ -16,7 +16,7 @@ pub const NONCE_LENGTH: usize = 32;
 #[derive(Debug)]
 pub struct AuthMessage {
     pub sig: [u8; 65],
-    pub initiator_pubk: [u8; 65],
+    pub initiator_pubk: [u8; 64],
     pub initiator_nonce: [u8; 32],
     pub auth_vsn: u32,
 }
@@ -29,8 +29,7 @@ impl AuthMessage {
         recipient_pk: &PublicKey,
     ) -> Result<AuthMessage, HandshakeError> {
         let auth_vsn = 4;
-
-        let shared_secret = SharedSecret::new(&recipient_pk, &initiator_sk).secret_bytes();
+        let shared_secret = ecdh_agree(initiator_sk, recipient_pk);
         let xored: [u8; 32] = xor(&shared_secret, initiator_nonce).try_into().unwrap();
         let msg = Message::from_digest(xored);
 
@@ -42,7 +41,9 @@ impl AuthMessage {
 
         let auth = AuthMessage {
             sig: signature.try_into().unwrap(),
-            initiator_pubk: initiator_pk.serialize_uncompressed(),
+            initiator_pubk: initiator_pk.serialize_uncompressed()[1..]
+                .try_into()
+                .unwrap(),
             initiator_nonce: initiator_nonce.to_owned(),
             auth_vsn,
         };
@@ -55,7 +56,7 @@ impl IntoRlpList for AuthMessage {
     fn into_rlp_list(&self) -> Vec<u8> {
         let mut auth_body = RlpStream::new_list(4);
         auth_body.append(&self.sig.as_slice());
-        auth_body.append(&self.initiator_pubk[1..].to_vec());
+        auth_body.append(&self.initiator_pubk.to_vec());
         auth_body.append(&self.initiator_nonce.as_slice());
         auth_body.append(&self.auth_vsn);
         let auth_body = auth_body.out();
