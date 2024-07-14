@@ -56,16 +56,14 @@ impl AuthMessage {
     }
 }
 
-// TODO use RlpEncodable and RlpDecodable.
 impl IntoRlpList for AuthMessage {
     fn into_rlp_list(&self) -> Vec<u8> {
-        let mut auth_body = RlpStream::new_list(4);
-        auth_body.append(&self.sig.as_slice());
-        auth_body.append(&self.initiator_pubk.to_vec());
-        auth_body.append(&self.initiator_nonce.as_slice());
-        auth_body.append(&self.auth_vsn);
-        let auth_body = auth_body.out();
-        auth_body.to_vec()
+        let mut rlp = RlpStream::new_list(4);
+        rlp.append(&self.sig.as_slice());
+        rlp.append(&self.initiator_pubk.to_vec());
+        rlp.append(&self.initiator_nonce.as_slice());
+        rlp.append(&self.auth_vsn);
+        rlp.out().to_vec()
     }
 }
 
