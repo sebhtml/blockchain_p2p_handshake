@@ -21,6 +21,11 @@ fn generate_frame_cipher_texts(
     msg_data: &[u8],
     aes_secret: &[u8; 32],
 ) -> Result<FrameCipherTexts, HandshakeError> {
+    // Cipher
+    let iv = [0 as u8; 16].as_slice();
+    let aes_secret = aes_secret.as_slice();
+    let mut cipher = Ctr64BE::<Aes256>::new(aes_secret.into(), iv.into());
+
     // frame-data = msg-id || msg-data
     let msg_id = rlp::encode(&msg_id);
     let frame_data = vec![&msg_id, msg_data].concat();
@@ -42,18 +47,6 @@ fn generate_frame_cipher_texts(
         0
     };
     let frame_padding = vec![0 as u8; frame_padding_len];
-
-    // frame-ciphertext = aes(aes-secret, frame-data || frame-padding)
-    let frame_data_and_padding = vec![frame_data, frame_padding].concat();
-    println!(
-        "frame_data_and_padding {}",
-        hex::encode(&frame_data_and_padding)
-    );
-    let iv = [0 as u8; 16].as_slice();
-    let aes_secret = aes_secret.as_slice();
-    let mut cipher = Ctr64BE::<Aes256>::new(aes_secret.into(), iv.into());
-    let mut frame_ciphertext = frame_data_and_padding.to_vec();
-    cipher.apply_keystream(&mut frame_ciphertext);
 
     // capability-id = integer, always zero
     let capability_id: u32 = 0;
@@ -80,9 +73,18 @@ fn generate_frame_cipher_texts(
     let header = vec![frame_size, &header_data, &header_padding].concat();
 
     // header-ciphertext = aes(aes-secret, header)
-    let mut cipher = Ctr64BE::<Aes256>::new(aes_secret.into(), iv.into());
     let mut header_ciphertext = header.to_vec();
     cipher.apply_keystream(&mut header_ciphertext);
+
+    // frame-ciphertext = aes(aes-secret, frame-data || frame-padding)
+    let frame_data_and_padding = vec![frame_data, frame_padding].concat();
+    println!(
+        "frame_data_and_padding {}",
+        hex::encode(&frame_data_and_padding)
+    );
+
+    let mut frame_ciphertext = frame_data_and_padding.to_vec();
+    cipher.apply_keystream(&mut frame_ciphertext);
 
     let texts = FrameCipherTexts {
         header_ciphertext: header_ciphertext.try_into().unwrap(),

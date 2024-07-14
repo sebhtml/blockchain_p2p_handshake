@@ -7,7 +7,7 @@ pub struct Message {
     pub msg_data: Vec<u8>,
 }
 
-#[derive(Debug, RlpEncodable, RlpDecodable)]
+#[derive(Debug, PartialEq, RlpEncodable, RlpDecodable)]
 pub struct Capability {
     pub cap: String,
     pub version: u32,
@@ -15,12 +15,12 @@ pub struct Capability {
 
 pub const HELLO_MSG_ID: u64 = 0;
 
-#[derive(Debug, RlpEncodable, RlpDecodable)]
+#[derive(Debug, PartialEq, RlpEncodable, RlpDecodable)]
 pub struct HelloMessageData {
-    pub protocol_version: u32,
+    pub protocol_version: u64,
     pub client_id: String,
     pub capabilities: Vec<Capability>,
-    pub listen_port: u16,
+    pub listen_port: u64,
     pub node_id: Vec<u8>,
 }
 
@@ -62,5 +62,19 @@ impl Message {
         let msg_data = &self.msg_data;
         let hello_msg_data: HelloMessageData = rlp::decode(msg_data).unwrap();
         Ok(hello_msg_data)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_encode_decode() {
+        let node_id = vec![3; 64];
+        let hello_msg_data = HelloMessageData::new(&node_id.try_into().unwrap());
+        let rlp_bytes = rlp::encode(&hello_msg_data);
+        let decoded_hello_msg_data: HelloMessageData = rlp::decode(&rlp_bytes).unwrap();
+        assert_eq!(decoded_hello_msg_data, hello_msg_data);
     }
 }
