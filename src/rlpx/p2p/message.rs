@@ -29,10 +29,7 @@ impl HelloMessageData {
         Self {
             protocol_version: 5,
             client_id: "sebhtml/blockchain_p2p_handshake/0.0.1".into(),
-            capabilities: vec![Capability {
-                cap: "p2p".into(),
-                version: 5,
-            }],
+            capabilities: vec![],
             listen_port: 0,
             node_id: node_id.to_vec(),
         }
