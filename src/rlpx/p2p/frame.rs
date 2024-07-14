@@ -44,11 +44,15 @@ fn generate_frame_cipher_texts(
     let frame_padding = vec![0 as u8; frame_padding_len];
 
     // frame-ciphertext = aes(aes-secret, frame-data || frame-padding)
+    let frame_data_and_padding = vec![frame_data, frame_padding].concat();
+    println!(
+        "frame_data_and_padding {}",
+        hex::encode(&frame_data_and_padding)
+    );
     let iv = [0 as u8; 16].as_slice();
     let aes_secret = aes_secret.as_slice();
     let mut cipher = Ctr64BE::<Aes256>::new(aes_secret.into(), iv.into());
-    let msg = vec![frame_data, frame_padding].concat();
-    let mut frame_ciphertext = msg.to_vec();
+    let mut frame_ciphertext = frame_data_and_padding.to_vec();
     cipher.apply_keystream(&mut frame_ciphertext);
 
     // capability-id = integer, always zero
