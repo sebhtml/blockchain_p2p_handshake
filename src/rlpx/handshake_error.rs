@@ -19,6 +19,7 @@ pub enum HandshakeError {
     RecipientDoesNotSupportP2pCapability,
     RecipientDisconnected,
     RecipientReturnedUndesiredBytes,
+    FrameSizeTooLarge,
 }
 
 impl Display for HandshakeError {
@@ -51,6 +52,7 @@ impl Display for HandshakeError {
             HandshakeError::RecipientReturnedUndesiredBytes => {
                 write!(f, "RecipientReturnedUndesiredBytes")
             }
+            HandshakeError::FrameSizeTooLarge => write!(f, "FrameSizeTooLarge"),
         }
     }
 }

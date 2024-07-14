@@ -20,13 +20,19 @@ fn generate_frame_cipher_texts(
     msg_id: u64,
     msg_data: &[u8],
     aes_secret: &[u8; 32],
-) -> FrameCipherTexts {
+) -> Result<FrameCipherTexts, HandshakeError> {
     // frame-data = msg-id || msg-data
     let msg_id = rlp::encode(&msg_id);
     let frame_data = vec![&msg_id, msg_data].concat();
 
     // frame-size = length of frame-data, encoded as a 24bit big-endian integer
-    let frame_size = &(frame_data.len() as u32).to_be_bytes()[0..3];
+    let frame_size = (frame_data.len() as u32).to_be_bytes();
+    let (probably_0, frame_size) = frame_size.split_at(1);
+    if probably_0[0] != 0 {
+        return Err(HandshakeError::FrameSizeTooLarge);
+    }
+    println!("frame_size {}", frame_data.len());
+    println!("frame_size bytes {}", hex::encode(frame_size));
 
     // frame-padding = zero-fill frame-data to 16-byte boundary
     let frame_data_modulo = frame_data.len() % 16;
@@ -74,16 +80,22 @@ fn generate_frame_cipher_texts(
     let mut header_ciphertext = header.to_vec();
     cipher.apply_keystream(&mut header_ciphertext);
 
-    FrameCipherTexts {
+    let texts = FrameCipherTexts {
         header_ciphertext: header_ciphertext.try_into().unwrap(),
         frame_ciphertext,
-    }
+    };
+    Ok(texts)
 }
 
-pub fn write_frame(msg: &Message, aes_secret: &[u8; 32], egress_mac: &mut MacState) -> Vec<u8> {
+pub fn write_frame(
+    msg: &Message,
+    aes_secret: &[u8; 32],
+    egress_mac: &mut MacState,
+) -> Result<Vec<u8>, HandshakeError> {
     let msg_id = msg.msg_id;
     let msg_data = &msg.msg_data;
-    let cipher_texts = generate_frame_cipher_texts(msg_id, msg_data, aes_secret);
+
+    let cipher_texts = generate_frame_cipher_texts(msg_id, msg_data, aes_secret)?;
     let header_ciphertext = &cipher_texts.header_ciphertext;
     let frame_ciphertext = &cipher_texts.frame_ciphertext;
 
@@ -100,7 +112,7 @@ pub fn write_frame(msg: &Message, aes_secret: &[u8; 32], egress_mac: &mut MacSta
     ]
     .concat();
 
-    frame
+    Ok(frame)
 }
 
 /// See https://github.com/ethereum/devp2p/blob/master/rlpx.md

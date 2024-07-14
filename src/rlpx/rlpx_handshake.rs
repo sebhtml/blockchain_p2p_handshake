@@ -143,15 +143,14 @@ pub fn do_rlpx_handshake_as_initiator(
             .try_into()
             .unwrap(),
     );
-    let _hello_frame = write_frame(&hello, &secrets.aes_secret, &mut egress_mac);
+    let hello_frame = write_frame(&hello, &secrets.aes_secret, &mut egress_mac)?;
 
-    /* TODO send hello to recipient
-       let bytes_written = write_bytes(&mut stream, &hello_frame)?;
-       println!("wrote hello with len {}", bytes_written);
-       if bytes_written != hello_frame.len() {
-           return Err(HandshakeError::IOError("bad bytes_written".into()));
-       }
-    */
+    // Send hello to recipient
+    let bytes_written = write_bytes(&mut stream, &hello_frame)?;
+    println!("wrote hello with len {}", bytes_written);
+    if bytes_written != hello_frame.len() {
+        return Err(HandshakeError::IOError("bad bytes_written".into()));
+    }
 
     // Receive hello from recipient
 
