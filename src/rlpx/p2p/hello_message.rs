@@ -1,9 +1,9 @@
 use crate::rlpx::handshake_error::HandshakeError;
-use alloy_rlp::{Decodable, Encodable};
+use alloy_rlp::{Decodable, Encodable, RlpDecodable, RlpEncodable};
 
 use super::frame::Frame;
 
-#[derive(Debug, PartialEq, alloy_rlp::RlpDecodable, alloy_rlp::RlpEncodable)]
+#[derive(Debug, PartialEq, RlpDecodable, RlpEncodable)]
 pub struct Capability {
     pub name: String,
     pub version: u32,
@@ -11,8 +11,7 @@ pub struct Capability {
 
 pub const HELLO_MSG_ID: u64 = 0x00;
 
-// TODO try to use rlp, and not alloy_rlp for Hello.
-#[derive(Debug, PartialEq, alloy_rlp::RlpDecodable, alloy_rlp::RlpEncodable)]
+#[derive(Debug, PartialEq, RlpDecodable, RlpEncodable)]
 pub struct HelloMessageData {
     pub protocol_version: u64,
     pub client_id: String,
