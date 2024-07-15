@@ -43,12 +43,12 @@ impl EthereumNode {
             &self.static_sk,
             &self.static_pk,
             initiator_ephemeral_sk,
-            peer.static_pk(),
+            &peer.recipient_static_pk,
         )?;
         let auth = prepare_auth_packet(
             &self.static_sk,
             &self.static_pk,
-            peer.static_pk(),
+            &peer.recipient_static_pk,
             &auth_message,
         )?;
 
@@ -87,7 +87,7 @@ impl EthereumNode {
         let (ack_size, enc_ack_body) = ack.split_at(2);
         let ack_body = ecies_decrypt(
             &self.static_sk,
-            connection.static_pk(),
+            &connection.recipient_static_pk,
             &enc_ack_body,
             &ack_size,
         )?;
@@ -106,7 +106,7 @@ impl EthereumNode {
         // Generate session secrets.
         let secrets = Secrets::new(
             &self.static_sk,
-            &connection.static_pk(),
+            &connection.recipient_static_pk,
             &initiator_ephemeral_sk,
             &remote_ephemeral_pk,
             recipient_nonce,

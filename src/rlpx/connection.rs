@@ -9,8 +9,8 @@ use secp256k1::PublicKey;
 use super::{enode::ENode, handshake_error::HandshakeError};
 
 pub struct Connection {
-    recipient_static_pk: PublicKey,
-    stream: TcpStream,
+    pub recipient_static_pk: PublicKey,
+    pub stream: TcpStream,
 }
 
 fn get_socket(ip_address: &str, port: u16) -> Result<SocketAddr, HandshakeError> {
@@ -37,10 +37,6 @@ impl Connection {
         };
 
         Ok(peer)
-    }
-
-    pub fn static_pk(&self) -> &PublicKey {
-        &self.recipient_static_pk
     }
 
     pub fn write_bytes(&mut self, packet: &[u8]) -> Result<usize, HandshakeError> {
