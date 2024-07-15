@@ -11,6 +11,7 @@ pub struct Capability {
 
 pub const HELLO_MSG_ID: u64 = 0x00;
 
+// TODO try to use rlp, and not alloy_rlp for Hello.
 #[derive(Debug, PartialEq, alloy_rlp::RlpDecodable, alloy_rlp::RlpEncodable)]
 pub struct HelloMessageData {
     pub protocol_version: u64,
