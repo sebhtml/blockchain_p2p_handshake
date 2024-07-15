@@ -6,7 +6,7 @@ use super::frame::Frame;
 
 pub const DISCONNECT_MSG_ID: u64 = 0x01;
 
-#[derive(Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Reason {
     DisconnectRequested = 0x00,
     TcpSubsystemError = 0x01,

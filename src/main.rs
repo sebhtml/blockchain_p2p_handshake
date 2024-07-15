@@ -16,20 +16,17 @@ struct Args {
 fn main() -> Result<ExitCode, HandshakeError> {
     let args = Args::parse();
     let recipient = args.recipient;
-    let recipient: ENode = recipient
+    let recipient_enode: ENode = recipient
         .as_str()
         .try_into()
         .map_err(|_| HandshakeError::BadENodeId)?;
 
     let node = EthereumNode::new();
-    let result = node.add_peer(&recipient);
+    let result = node.add_peer(&recipient_enode);
 
     match result {
         Ok(_ephemeral_secrets) => {
-            println!(
-                "Handshake with {}:{} was successful",
-                recipient.ip_addr, recipient.port,
-            )
+            println!("Handshake with {} was successful", recipient,)
         }
         Err(err) => {
             println!("Handshake failed with error {}", err);

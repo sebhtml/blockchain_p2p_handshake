@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use crate::rlpx::handshake_error::HandshakeError;
 use alloy_rlp::{Decodable, Encodable, RlpDecodable, RlpEncodable};
 
@@ -18,6 +20,17 @@ pub struct HelloMessageData {
     pub capabilities: Vec<Capability>,
     pub listen_port: u64,
     pub node_id: [u8; 64],
+}
+
+impl Display for HelloMessageData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let _ = writeln!(f, "protocol_version: {}", self.protocol_version);
+        let _ = writeln!(f, "client_id: {}", self.client_id);
+        let _ = writeln!(f, "capabilities: {:?}", self.capabilities);
+        let _ = writeln!(f, "listen_port: {}", self.listen_port);
+        let res = writeln!(f, "node_id: {}", hex::encode(self.node_id));
+        res
+    }
 }
 
 impl HelloMessageData {

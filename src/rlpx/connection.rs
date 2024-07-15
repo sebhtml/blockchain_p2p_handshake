@@ -113,6 +113,7 @@ impl Connection {
             &initiator_nonce,
             &initiator_ephemeral_sk,
         )?;
+        println!("Initiator wrote Auth to Recipient with len {}", auth.len());
 
         // Read Ack
         let ack = self.read_bytes()?;
@@ -130,6 +131,7 @@ impl Connection {
             &enc_ack_body,
             &ack_size,
         )?;
+        println!("Initiator read Ack from Recipient with len {}", ack.len());
 
         // Convert arc-body to AckMessage.
         let ack_message = AckMessage::decode(&mut ack_body.as_slice())
@@ -171,7 +173,10 @@ impl Connection {
         let egress_frame_bytes = egress_frame.write_frame(egress_cipher, egress_mac)?;
 
         let bytes_written = self.write_bytes(&egress_frame_bytes)?;
-        println!("wrote Hello with len {}", bytes_written);
+        println!(
+            "Initiator wrote Hello to Recipient with len {}",
+            bytes_written
+        );
 
         // Receive hello from recipient
         let ingress_frame_bytes = self.read_bytes()?;
@@ -184,7 +189,10 @@ impl Connection {
         }
 
         let ingress_msg_data: HelloMessageData = ingress_frame.try_into()?;
-        println!("recipient HelloMessageData {:?}", ingress_msg_data);
+        println!(
+            "Initiator received Hello from Recipient {}",
+            ingress_msg_data
+        );
 
         // Check protocol version
         if ingress_msg_data.protocol_version != 5 {
@@ -202,7 +210,11 @@ impl Connection {
         }
 
         let ingress_msg_data: DisconnectMessageData = ingress_frame.try_into()?;
-        println!("recipient DisconnectMessageData {:?}", ingress_msg_data);
+        println!(
+            "Initiator received Disconnect from Recipient {:?}",
+            ingress_msg_data
+        );
+        println!("Reason: {:?}", ingress_msg_data.reason());
 
         // Check protocol version
         if ingress_msg_data.reason()? != Reason::UselessPeer {
@@ -214,8 +226,10 @@ impl Connection {
         let egress_frame_bytes = egress_frame.write_frame(egress_cipher, egress_mac)?;
 
         let bytes_written = self.write_bytes(&egress_frame_bytes)?;
-        println!("wrote Disconnect with len {}", bytes_written);
-
+        println!(
+            "Initiator wrote Disconnect to Recipient with len {}",
+            bytes_written
+        );
         // Verify that the peer has disconnected.
         let recipient_disconnect_bytes = self.read_bytes()?;
         if recipient_disconnect_bytes.len() != 0 {
