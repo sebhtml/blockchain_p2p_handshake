@@ -6,7 +6,7 @@ use crate::rlpx::handshake_error::HandshakeError;
 
 use super::{
     ecies::{ecdh_agree, ecies_encrypt},
-    xor,
+    xor::xor,
 };
 
 pub const NONCE_LENGTH: usize = 32;
@@ -30,7 +30,7 @@ impl AuthMessage {
         recipient_static_pk: &PublicKey,
     ) -> Result<AuthMessage, HandshakeError> {
         let shared_secret = ecdh_agree(initiator_static_sk, recipient_static_pk);
-        let xored: [u8; 32] = xor(&shared_secret, initiator_nonce).try_into().unwrap();
+        let xored = xor(&shared_secret, initiator_nonce).try_into().unwrap();
         let msg = Message::from_digest(xored);
 
         let context = Secp256k1::new();
@@ -74,7 +74,7 @@ pub fn prepare_auth_packet(
     let auth_size: usize = 65 /* pk */ + 16 /* iv */ + auth_body.len() + 32 /* tag */;
     let auth_size = u16::try_from(auth_size).unwrap();
     let auth_size = auth_size.to_be_bytes();
-    let enc_auth_body = &ecies_encrypt(
+    let enc_auth_body = ecies_encrypt(
         initiator_static_pk,
         initiator_ephemeral_sk,
         &recipient_static_pk,

@@ -1,18 +1,13 @@
+use crate::rlpx::ecies_handshake::auth_message::{prepare_auth_packet, AuthMessage};
+use crate::rlpx::ecies_handshake::xor::xor;
 use crate::rlpx::ecies_handshake::{
     ack_message::AckMessage, ecies::ecies_decrypt, nonce::make_nonce, secrets::Secrets,
 };
 use crate::rlpx::p2p::disconnect_message::{DisconnectMessageData, Reason, DISCONNECT_MSG_ID};
 use crate::rlpx::p2p::frame::Frame;
 use crate::rlpx::p2p::hello_message::{HelloMessageData, HELLO_MSG_ID};
+use crate::rlpx::p2p::mac::MacState;
 use crate::rlpx::peer::Peer;
-use crate::rlpx::{
-    ecies_handshake::{
-        auth_message::{prepare_auth_packet, AuthMessage},
-        xor,
-    },
-    p2p::mac::MacState,
-};
-
 use aes::cipher::KeyIvInit;
 use aes::Aes256;
 use alloy_rlp::Decodable;

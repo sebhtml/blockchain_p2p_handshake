@@ -4,7 +4,7 @@ use aes::{
 };
 use sha3::{Digest, Keccak256};
 
-use crate::rlpx::ecies_handshake::xor;
+use crate::rlpx::ecies_handshake::xor::xor;
 
 pub struct FrameMacTags {
     pub header_mac: [u8; 16],
@@ -54,14 +54,14 @@ impl MacState {
     fn update_with_header_ciphertext(&mut self, header_ciphertext: &[u8; 16]) -> [u8; 16] {
         let mac = self.mac();
 
-        let mut aes_mac = mac.to_vec();
+        let mut aes_mac = mac.clone();
         let msg_len = aes_mac.len();
 
         self.cipher
             .encrypt_padded::<NoPadding>(&mut aes_mac, msg_len)
             .unwrap();
 
-        let header_mac_seed: Vec<u8> = xor(&aes_mac, header_ciphertext);
+        let header_mac_seed = xor(&aes_mac, header_ciphertext);
         self.update(&header_mac_seed);
         let header_mac = self.mac();
         header_mac
@@ -72,7 +72,7 @@ impl MacState {
 
         let mac = self.mac();
 
-        let mut aes_mac = mac.to_vec();
+        let mut aes_mac = mac.clone();
         let msg_len = aes_mac.len();
 
         self.cipher
@@ -81,7 +81,7 @@ impl MacState {
 
         let mac = self.mac();
 
-        let frame_mac_seed: Vec<u8> = xor(&aes_mac, &mac);
+        let frame_mac_seed = xor(&aes_mac, &mac);
         self.update(&frame_mac_seed);
         let frame_mac = self.mac();
         frame_mac
