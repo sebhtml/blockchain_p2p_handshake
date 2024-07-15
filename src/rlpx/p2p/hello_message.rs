@@ -2,7 +2,7 @@ use crate::rlpx::{handshake_error::HandshakeError, IntoRlpList};
 use alloy_rlp::{Decodable, Encodable};
 use rlp::Rlp;
 
-use super::frame::Message;
+use super::frame::Frame;
 
 #[derive(Debug, PartialEq, alloy_rlp::RlpDecodable, alloy_rlp::RlpEncodable)]
 pub struct Capability {
@@ -178,24 +178,24 @@ impl IntoRlpList for HelloMessageData {
 }
 
 pub trait Hello {
-    fn hello(node_id: &[u8; 64]) -> Message;
+    fn hello(node_id: &[u8; 64]) -> Frame;
 }
 
 // TODO move Hello things to hello.rs
-impl Hello for Message {
-    fn hello(node_id: &[u8; 64]) -> Message {
+impl Hello for Frame {
+    fn hello(node_id: &[u8; 64]) -> Frame {
         let hello_msg_data = HelloMessageData::new(node_id);
         let mut message_data = vec![];
         hello_msg_data.encode(&mut message_data);
 
-        Message {
+        Frame {
             msg_id: HELLO_MSG_ID,
             msg_data: message_data.into(),
         }
     }
 }
 
-impl Message {
+impl Frame {
     pub fn to_hello_msg_data(&self) -> Result<HelloMessageData, HandshakeError> {
         // Decode msg_data into HelloMessageData
         let mut msg_data = self.msg_data.as_slice();

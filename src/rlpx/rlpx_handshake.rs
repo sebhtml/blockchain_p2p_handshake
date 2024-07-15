@@ -1,7 +1,7 @@
 use crate::rlpx::ecies_handshake::{
     ack_message::AckMessage, ecies::ecies_decrypt, nonce::make_nonce, secrets::Secrets,
 };
-use crate::rlpx::p2p::frame::{read_frame, write_frame, Message};
+use crate::rlpx::p2p::frame::Frame;
 use crate::rlpx::p2p::hello_message::{Hello, HELLO_MSG_ID};
 use crate::rlpx::{
     ecies_handshake::{
@@ -134,17 +134,17 @@ pub fn do_rlpx_handshake_as_initiator(
 
     // Send Hello to recipient
     // TODO don't put hello method in Message namespace.
-    let hello = Message::hello(
+    let hello = Frame::hello(
         &initiator_static_pk.serialize_uncompressed()[1..]
             .try_into()
             .unwrap(),
     );
-    let hello_frame = write_frame(&hello, &secrets.aes_secret, &mut egress_mac)?;
+    let hello_bytes = hello.write_frame(&secrets.aes_secret, &mut egress_mac)?;
 
     // Send hello to recipient
-    let bytes_written = write_bytes(&mut stream, &hello_frame)?;
+    let bytes_written = write_bytes(&mut stream, &hello_bytes)?;
     println!("wrote hello with len {}", bytes_written);
-    if bytes_written != hello_frame.len() {
+    if bytes_written != hello_bytes.len() {
         return Err(HandshakeError::IOError("bad bytes_written".into()));
     }
 
@@ -152,7 +152,7 @@ pub fn do_rlpx_handshake_as_initiator(
 
     let recipient_hello_frame = read_bytes(&mut stream)?;
 
-    let recipient_hello = read_frame(
+    let recipient_hello = Frame::read_frame(
         &recipient_hello_frame,
         &secrets.aes_secret,
         &mut ingress_mac,
