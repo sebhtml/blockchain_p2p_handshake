@@ -22,6 +22,7 @@ pub enum HandshakeError {
     InvalidDisconnectReason,
     RecipientReturnedUndesiredBytes,
     FrameSizeTooLarge,
+    FailedToPrepareCryptoMaterial,
 }
 
 impl Display for HandshakeError {
@@ -44,6 +45,9 @@ impl Display for HandshakeError {
             }
             HandshakeError::RecipientHelloNodeIdMismatch => {
                 write!(f, "RecipientHelloNodeIdMismatch")
+            }
+            HandshakeError::FailedToPrepareCryptoMaterial => {
+                write!(f, "FailedToPrepareCryptoMaterial")
             }
             HandshakeError::RecipientDisconnected => {
                 write!(f, "RecipientDisconnected")

@@ -7,7 +7,8 @@ use super::ecies::ecdh_agree;
 pub struct Secrets {
     #[allow(unused)]
     static_shared_secret: [u8; 32],
-    pub ephemeral_key: [u8; 32],
+    #[allow(unused)]
+    ephemeral_key: [u8; 32],
     pub aes_secret: [u8; 32],
     pub mac_secret: [u8; 32],
 }

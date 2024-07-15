@@ -33,6 +33,16 @@ pub struct Connection {
     pub stream: TcpStream,
 }
 
+struct MacsAndCiphers {
+    egress: MacAndCipher,
+    ingress: MacAndCipher,
+}
+
+struct MacAndCipher {
+    mac: MacState,
+    cipher: Ctr64BE<Aes256>,
+}
+
 fn get_socket(ip_address: &str, port: u16) -> Result<SocketAddr, HandshakeError> {
     let addr = if let Ok(addr) = Ipv4Addr::from_str(&ip_address) {
         Ok(IpAddr::V4(addr))
@@ -87,7 +97,7 @@ impl Connection {
 
         let initiator_nonce = make_nonce();
 
-        // TODO it is weird that we don't need initiator_ephemeral_pk.
+        // It is weird that we don't need initiator_ephemeral_pk in ECIES.
         let (initiator_ephemeral_sk, _initiator_ephemeral_pk) = generate_keypair(&mut rng);
 
         // Send Auth
@@ -126,33 +136,21 @@ impl Connection {
 
         let recipient_nonce = &ack_message.recipient_nonce;
 
-        // Generate session secrets.
-        let secrets = Secrets::new(
+        // The Auth and Ack things are done.
+        let mut macs_and_ciphers = self.setup_cryptographic_connection(
+            &auth,
+            &ack,
             initiator_static_sk,
-            &self.recipient_static_pk,
             &initiator_ephemeral_sk,
             &remote_ephemeral_pk,
             recipient_nonce,
             &initiator_nonce,
-        );
+        )?;
 
-        // key and iv for egress and ingress
-        let aes_secret = secrets.aes_secret.as_slice();
-        let iv = [0 as u8; 16].as_slice();
-
-        // TODO add state machine for the message to handle.
-
-        // Initiate egress
-        let mut egress_mac = MacState::new(&secrets.mac_secret);
-        egress_mac.update(&xor(&secrets.mac_secret, recipient_nonce));
-        egress_mac.update(&auth);
-        let mut egress_cipher = Ctr64BE::<Aes256>::new(aes_secret.into(), iv.into());
-
-        // Ingress MAC and cipher
-        let mut ingress_mac = MacState::new(&secrets.mac_secret);
-        ingress_mac.update(&xor(&secrets.mac_secret, &initiator_nonce));
-        ingress_mac.update(&ack);
-        let mut ingress_cipher = Ctr64BE::<Aes256>::new(aes_secret.into(), iv.into());
+        let egress_mac = &mut macs_and_ciphers.egress.mac;
+        let egress_cipher = &mut macs_and_ciphers.egress.cipher;
+        let ingress_mac = &mut macs_and_ciphers.ingress.mac;
+        let ingress_cipher = &mut macs_and_ciphers.ingress.cipher;
 
         // Send Hello to recipient
         let egress_frame: Frame = HelloMessageData::new(
@@ -161,7 +159,8 @@ impl Connection {
                 .unwrap(),
         )
         .into();
-        let egress_frame_bytes = egress_frame.write_frame(&mut egress_cipher, &mut egress_mac)?;
+
+        let egress_frame_bytes = egress_frame.write_frame(egress_cipher, egress_mac)?;
 
         let bytes_written = self.write_bytes(&egress_frame_bytes)?;
         println!("wrote Hello with len {}", bytes_written);
@@ -172,8 +171,7 @@ impl Connection {
         // Receive hello from recipient
         let ingress_frame_bytes = self.read_bytes()?;
 
-        let ingress_frame =
-            Frame::read_frame(&ingress_frame_bytes, &mut ingress_cipher, &mut ingress_mac)?;
+        let ingress_frame = Frame::read_frame(&ingress_frame_bytes, ingress_cipher, ingress_mac)?;
 
         // Check message id
         if ingress_frame.msg_id != HELLO_MSG_ID {
@@ -192,8 +190,7 @@ impl Connection {
         // The recipient node is probably going to disconnect since we don't implement the
         // "eth" capability in this handshake client.
         let ingress_frame_bytes = self.read_bytes()?;
-        let ingress_frame =
-            Frame::read_frame(&ingress_frame_bytes, &mut ingress_cipher, &mut ingress_mac)?;
+        let ingress_frame = Frame::read_frame(&ingress_frame_bytes, ingress_cipher, ingress_mac)?;
 
         if ingress_frame.msg_id != DISCONNECT_MSG_ID {
             return Err(HandshakeError::RecipientDidNotDisconnect);
@@ -209,7 +206,7 @@ impl Connection {
 
         // Send Disconnect to recipient
         let egress_frame: Frame = DisconnectMessageData::new(Reason::DisconnectRequested).into();
-        let egress_frame_bytes = egress_frame.write_frame(&mut egress_cipher, &mut egress_mac)?;
+        let egress_frame_bytes = egress_frame.write_frame(egress_cipher, egress_mac)?;
 
         // TODO move the bytes_written check in the write_bytes fn
         let bytes_written = self.write_bytes(&egress_frame_bytes)?;
@@ -254,5 +251,55 @@ impl Connection {
             return Err(HandshakeError::IOError("bad bytes_written".into()));
         }
         Ok(auth)
+    }
+
+    fn setup_cryptographic_connection(
+        &mut self,
+        auth: &[u8],
+        ack: &[u8],
+        initiator_static_sk: &SecretKey,
+        initiator_ephemeral_sk: &SecretKey,
+        remote_ephemeral_pk: &PublicKey,
+        recipient_nonce: &[u8; 32],
+        initiator_nonce: &[u8; 32],
+    ) -> Result<MacsAndCiphers, HandshakeError> {
+        // Generate session secrets.
+        let secrets = Secrets::new(
+            initiator_static_sk,
+            &self.recipient_static_pk,
+            &initiator_ephemeral_sk,
+            remote_ephemeral_pk,
+            recipient_nonce,
+            initiator_nonce,
+        );
+
+        // key and iv for egress and ingress
+        let aes_secret = secrets.aes_secret.as_slice();
+        let iv = [0 as u8; 16].as_slice();
+
+        // Initiate egress
+        let mut egress_mac = MacState::new(&secrets.mac_secret);
+        egress_mac.update(&xor(&secrets.mac_secret, recipient_nonce));
+        egress_mac.update(&auth);
+        let egress_cipher = Ctr64BE::<Aes256>::new(aes_secret.into(), iv.into());
+
+        // Ingress MAC and cipher
+        let mut ingress_mac = MacState::new(&secrets.mac_secret);
+        ingress_mac.update(&xor(&secrets.mac_secret, initiator_nonce));
+        ingress_mac.update(&ack);
+        let ingress_cipher = Ctr64BE::<Aes256>::new(aes_secret.into(), iv.into());
+
+        let macs_and_ciphers = MacsAndCiphers {
+            egress: MacAndCipher {
+                mac: egress_mac,
+                cipher: egress_cipher,
+            },
+            ingress: MacAndCipher {
+                mac: ingress_mac,
+                cipher: ingress_cipher,
+            },
+        };
+
+        Ok(macs_and_ciphers)
     }
 }

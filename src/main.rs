@@ -1,6 +1,4 @@
-// TODOs
-// - remove calls to unwrap
-// - remove calls to panic
+// - TODO remove calls to unwrap
 
 use clap::Parser;
 use rlpx::{enode::ENode, node::EthereumNode};
