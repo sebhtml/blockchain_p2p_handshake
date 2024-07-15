@@ -2,7 +2,7 @@ use crate::rlpx::ecies_handshake::{
     ack_message::AckMessage, ecies::ecies_decrypt, nonce::make_nonce, secrets::Secrets,
 };
 use crate::rlpx::p2p::frame::Frame;
-use crate::rlpx::p2p::hello_message::{Hello, HELLO_MSG_ID};
+use crate::rlpx::p2p::hello_message::{HelloMessageData, HELLO_MSG_ID};
 use crate::rlpx::{
     ecies_handshake::{
         auth_message::{prepare_auth_packet, AuthMessage},
@@ -143,11 +143,12 @@ pub fn do_rlpx_handshake_as_initiator(
 
     // Send Hello to recipient
     // TODO don't put hello method in Message namespace.
-    let hello = Frame::hello(
+    let hello: Frame = HelloMessageData::new(
         &initiator_static_pk.serialize_uncompressed()[1..]
             .try_into()
             .unwrap(),
-    );
+    )
+    .into();
     let hello_bytes = hello.write_frame(&mut egress_cipher, &mut egress_mac)?;
 
     // Send hello to recipient
@@ -159,20 +160,20 @@ pub fn do_rlpx_handshake_as_initiator(
 
     // Receive hello from recipient
 
-    let recipient_hello_frame = read_bytes(&mut stream)?;
+    let recipient_hello_bytes = read_bytes(&mut stream)?;
 
-    let recipient_hello = Frame::read_frame(
-        &recipient_hello_frame,
+    let recipient_hello_frame = Frame::read_frame(
+        &recipient_hello_bytes,
         &mut ingress_cipher,
         &mut ingress_mac,
     )?;
 
     // Check message id
-    if recipient_hello.msg_id != HELLO_MSG_ID {
+    if recipient_hello_frame.msg_id != HELLO_MSG_ID {
         return Err(HandshakeError::BadRecipientHelloMsgId);
     }
 
-    let recipient_hello_data = recipient_hello.to_hello_msg_data()?;
+    let recipient_hello_data: HelloMessageData = recipient_hello_frame.try_into()?;
     println!("recipient_hello_data {:?}", recipient_hello_data);
 
     // Check protocol version

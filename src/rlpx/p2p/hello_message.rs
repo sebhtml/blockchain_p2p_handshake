@@ -35,15 +35,10 @@ impl HelloMessageData {
     }
 }
 
-pub trait Hello {
-    fn hello(node_id: &[u8; 64]) -> Frame;
-}
-
-impl Hello for Frame {
-    fn hello(node_id: &[u8; 64]) -> Frame {
-        let hello_msg_data = HelloMessageData::new(node_id);
+impl Into<Frame> for HelloMessageData {
+    fn into(self) -> Frame {
         let mut message_data = vec![];
-        hello_msg_data.encode(&mut message_data);
+        self.encode(&mut message_data);
 
         Frame {
             msg_id: HELLO_MSG_ID,
@@ -52,10 +47,12 @@ impl Hello for Frame {
     }
 }
 
-impl Frame {
-    pub fn to_hello_msg_data(&self) -> Result<HelloMessageData, HandshakeError> {
+impl TryFrom<Frame> for HelloMessageData {
+    type Error = HandshakeError;
+
+    fn try_from(value: Frame) -> Result<Self, Self::Error> {
         // Decode msg_data into HelloMessageData
-        let mut msg_data = self.msg_data.as_slice();
+        let mut msg_data = value.msg_data.as_slice();
         let hello_msg_data = HelloMessageData::decode(&mut msg_data).unwrap();
         Ok(hello_msg_data)
     }
