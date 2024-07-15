@@ -74,6 +74,9 @@ impl Connection {
             .stream
             .write(&packet)
             .map_err(|err| HandshakeError::IOError(err.to_string()))?;
+        if bytes_written != packet.len() {
+            return Err(HandshakeError::IOError("bad bytes_written".into()));
+        }
         Ok(bytes_written)
     }
 
@@ -164,9 +167,6 @@ impl Connection {
 
         let bytes_written = self.write_bytes(&egress_frame_bytes)?;
         println!("wrote Hello with len {}", bytes_written);
-        if bytes_written != egress_frame_bytes.len() {
-            return Err(HandshakeError::IOError("bad bytes_written".into()));
-        }
 
         // Receive hello from recipient
         let ingress_frame_bytes = self.read_bytes()?;
@@ -208,12 +208,8 @@ impl Connection {
         let egress_frame: Frame = DisconnectMessageData::new(Reason::DisconnectRequested).into();
         let egress_frame_bytes = egress_frame.write_frame(egress_cipher, egress_mac)?;
 
-        // TODO move the bytes_written check in the write_bytes fn
         let bytes_written = self.write_bytes(&egress_frame_bytes)?;
         println!("wrote Disconnect with len {}", bytes_written);
-        if bytes_written != egress_frame_bytes.len() {
-            return Err(HandshakeError::IOError("bad bytes_written".into()));
-        }
 
         // Verify that the peer has disconnected.
         let recipient_disconnect_bytes = self.read_bytes()?;
@@ -245,11 +241,8 @@ impl Connection {
             &auth_message,
         )?;
 
-        let bytes_written = self.write_bytes(&auth)?;
+        let _ = self.write_bytes(&auth)?;
 
-        if bytes_written != auth.len() {
-            return Err(HandshakeError::IOError("bad bytes_written".into()));
-        }
         Ok(auth)
     }
 
