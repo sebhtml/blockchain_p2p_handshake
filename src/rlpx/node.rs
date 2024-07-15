@@ -39,7 +39,7 @@ impl EthereumNode {
 
     /// Use the 'p2p' capability to add a peer.
     /// See RLPx : https://github.com/ethereum/devp2p/blob/master/rlpx.md
-    pub fn add_peer(&self, recipient_enode: &ENode) -> Result<Secrets, HandshakeError> {
+    pub fn add_peer(&self, recipient_enode: &ENode) -> Result<bool, HandshakeError> {
         let mut peer = Peer::new(recipient_enode)?;
 
         let mut rng = secp256k1::rand::thread_rng();
@@ -189,7 +189,6 @@ impl EthereumNode {
             return Err(HandshakeError::RecipientDidNotDisconnect);
         }
 
-        // TODO don't return secrets
-        Ok(secrets)
+        Ok(true)
     }
 }
