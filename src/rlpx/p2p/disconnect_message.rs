@@ -68,6 +68,12 @@ impl Decodable for DisconnectMessageData {
 }
 
 impl DisconnectMessageData {
+    pub fn new(reason: Reason) -> Self {
+        Self {
+            reason: reason as u8,
+        }
+    }
+
     pub fn reason(&self) -> Result<Reason, HandshakeError> {
         let reason = self.reason;
         Reason::try_from(reason)

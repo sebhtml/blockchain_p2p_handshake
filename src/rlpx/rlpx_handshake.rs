@@ -151,9 +151,8 @@ pub fn do_rlpx_handshake_as_initiator(
     .into();
     let egress_frame_bytes = egress_frame.write_frame(&mut egress_cipher, &mut egress_mac)?;
 
-    // Send hello to recipient
     let bytes_written = write_bytes(&mut stream, &egress_frame_bytes)?;
-    println!("wrote hello with len {}", bytes_written);
+    println!("wrote Hello with len {}", bytes_written);
     if bytes_written != egress_frame_bytes.len() {
         return Err(HandshakeError::IOError("bad bytes_written".into()));
     }
@@ -177,13 +176,13 @@ pub fn do_rlpx_handshake_as_initiator(
         return Err(HandshakeError::RecipientHelloP2pProtocolMismatch);
     }
 
+    // Receive Disconnect from recipient.
     // The recipient node is probably going to disconnect since we don't implement the
     // "eth" capability in this handshake client.
     let ingress_frame_bytes = read_bytes(&mut stream)?;
     let ingress_frame =
         Frame::read_frame(&ingress_frame_bytes, &mut ingress_cipher, &mut ingress_mac)?;
 
-    // Check message id
     if ingress_frame.msg_id != DISCONNECT_MSG_ID {
         return Err(HandshakeError::RecipientDidNotDisconnect);
     }
@@ -194,6 +193,15 @@ pub fn do_rlpx_handshake_as_initiator(
     // Check protocol version
     if ingress_msg_data.reason()? != Reason::UselessPeer {
         return Err(HandshakeError::RecipientHelloP2pProtocolMismatch);
+    }
+
+    // Send Disconnect to recipient
+    let egress_frame: Frame = DisconnectMessageData::new(Reason::DisconnectRequested).into();
+    let egress_frame_bytes = egress_frame.write_frame(&mut egress_cipher, &mut egress_mac)?;
+    let bytes_written = write_bytes(&mut stream, &egress_frame_bytes)?;
+    println!("wrote Disconnect with len {}", bytes_written);
+    if bytes_written != egress_frame_bytes.len() {
+        return Err(HandshakeError::IOError("bad bytes_written".into()));
     }
 
     // Verify that the peer has disconnected.
