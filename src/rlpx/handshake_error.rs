@@ -3,7 +3,7 @@ use std::fmt::Display;
 #[derive(Debug)]
 pub enum HandshakeError {
     BadENodeId,
-    BadENodeIdPubKeyLength,
+    CryptoKeyError,
     BadRegex(String),
     BadRecipientNodeAddress,
     BadRecipientPortInteger,
@@ -34,7 +34,7 @@ impl Display for HandshakeError {
             HandshakeError::BadENodeId => write!(f, "BadENodeId"),
             HandshakeError::HmacValidationFailure => write!(f, "HmacValidationFailure"),
             HandshakeError::HmacGenerationError => write!(f, "HmacGenerationError"),
-            HandshakeError::BadENodeIdPubKeyLength => write!(f, "BadENodeIdPubKeyLength"),
+            HandshakeError::CryptoKeyError => write!(f, "CryptoKeyError"),
             HandshakeError::BadRegex(err) => write!(f, "BadRegex: {}", err),
             HandshakeError::Secp256k1Error(err) => write!(f, "Secp256k1Error: {}", err),
             HandshakeError::HexError(err) => write!(f, "HexError: {}", err),

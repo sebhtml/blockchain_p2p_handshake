@@ -58,9 +58,12 @@ fn get_socket(ip_address: &str, port: u16) -> Result<SocketAddr, HandshakeError>
 
 impl Connection {
     pub fn new(recipient_enode: &ENode) -> Result<Self, HandshakeError> {
-        let static_pk: PublicKey = recipient_enode.try_into().unwrap();
+        let static_pk: PublicKey = recipient_enode
+            .try_into()
+            .map_err(|_| HandshakeError::CryptoKeyError)?;
         let recipient_socket = get_socket(&recipient_enode.ip_addr, recipient_enode.port)?;
-        let stream = TcpStream::connect(recipient_socket).unwrap();
+        let stream = TcpStream::connect(recipient_socket)
+            .map_err(|err| HandshakeError::IOError(err.to_string()))?;
         let peer = Self {
             recipient_static_pk: static_pk,
             stream,
@@ -129,13 +132,15 @@ impl Connection {
         )?;
 
         // Convert arc-body to AckMessage.
-        let ack_message = AckMessage::decode(&mut ack_body.as_slice()).unwrap();
+        let ack_message = AckMessage::decode(&mut ack_body.as_slice())
+            .map_err(|_| HandshakeError::RlpDecodeError)?;
         let recipient_ephemeral_pubk = vec![
             [4].as_slice(),
             ack_message.recipient_ephemeral_pubk.as_slice(),
         ]
         .concat();
-        let remote_ephemeral_pk = PublicKey::from_slice(&recipient_ephemeral_pubk).unwrap();
+        let remote_ephemeral_pk = PublicKey::from_slice(&recipient_ephemeral_pubk)
+            .map_err(|_| HandshakeError::CryptoKeyError)?;
 
         let recipient_nonce = &ack_message.recipient_nonce;
 
@@ -159,7 +164,7 @@ impl Connection {
         let egress_frame: Frame = HelloMessageData::new(
             initiator_static_pk.serialize_uncompressed()[1..]
                 .try_into()
-                .unwrap(),
+                .map_err(|_| HandshakeError::CryptoKeyError)?,
         )
         .into();
 
