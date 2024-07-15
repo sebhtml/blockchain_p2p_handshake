@@ -3,8 +3,7 @@
 // - remove calls to panic
 
 use clap::Parser;
-use rlpx::{enode::ENode, rlpx_handshake::do_rlpx_handshake_as_initiator};
-use secp256k1::generate_keypair;
+use rlpx::{enode::ENode, rlpx_handshake::EthereumNode};
 pub mod rlpx;
 
 #[derive(Parser, Debug)]
@@ -19,11 +18,8 @@ fn main() {
     let recipient = args.recipient;
     let recipient: ENode = recipient.as_str().try_into().unwrap();
 
-    let mut rng = secp256k1::rand::thread_rng();
-    let (initiator_static_sk, initiator_static_pk) = generate_keypair(&mut rng);
-
-    let result =
-        do_rlpx_handshake_as_initiator(&initiator_static_sk, &initiator_static_pk, &recipient);
+    let initiator = EthereumNode::new();
+    let result = initiator.do_handshake(&recipient);
     match result {
         Ok(_ephemeral_secrets) => println!(
             "Handshake with {}:{} was successful",
