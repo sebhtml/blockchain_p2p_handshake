@@ -1,7 +1,6 @@
-use aes::cipher::StreamCipher;
-use rlp::RlpStream;
-
 use crate::rlpx::handshake_error::HandshakeError;
+use aes::cipher::StreamCipher;
+use alloy_rlp::{Decodable, Encodable, RlpDecodable, RlpEncodable};
 
 use super::mac::MacState;
 
@@ -12,6 +11,23 @@ pub struct FrameCipherTexts {
 pub struct Frame {
     pub msg_id: u64,
     pub msg_data: Vec<u8>,
+}
+
+#[derive(RlpEncodable, RlpDecodable)]
+pub struct HeaderData {
+    capability_id: u32,
+    context_id: u32,
+}
+
+impl Default for HeaderData {
+    fn default() -> Self {
+        Self {
+            // capability-id = integer, always zero
+            capability_id: Default::default(),
+            // context-id = integer, always zero
+            context_id: Default::default(),
+        }
+    }
 }
 
 impl Frame {
@@ -25,8 +41,9 @@ impl Frame {
         let msg_data = self.msg_data.as_slice();
 
         // frame-data = msg-id || msg-data
-        let msg_id = rlp::encode(&msg_id);
-        let frame_data = vec![&msg_id, msg_data].concat();
+        let mut msg_id_bytes = vec![];
+        msg_id.encode(&mut msg_id_bytes);
+        let frame_data = vec![&msg_id_bytes, msg_data].concat();
 
         // frame-size = length of frame-data, encoded as a 24bit big-endian integer
         let frame_size = (frame_data.len() as u32).to_be_bytes();
@@ -44,20 +61,13 @@ impl Frame {
         };
         let frame_padding = vec![0 as u8; frame_padding_len];
 
-        // capability-id = integer, always zero
-        let capability_id: u32 = 0;
-
-        // context-id = integer, always zero
-        let context_id: u32 = 0;
-
         // header-data = [capability-id, context-id]
-        let mut header_data = RlpStream::new_list(2);
-        header_data.append(&capability_id);
-        header_data.append(&context_id);
-        let header_data = header_data.out();
+        let mut header_data_bytes = vec![];
+        let header_data = HeaderData::default();
+        header_data.encode(&mut header_data_bytes);
 
         // header-padding = zero-fill header to 16-byte boundary
-        let header_modulo = (frame_size.len() + header_data.len()) % 16;
+        let header_modulo = (frame_size.len() + header_data_bytes.len()) % 16;
         let header_padding_len = if header_modulo != 0 {
             16 - header_modulo
         } else {
@@ -66,7 +76,7 @@ impl Frame {
         let header_padding = vec![0 as u8; header_padding_len];
 
         // header = frame-size || header-data || header-padding
-        let header = vec![frame_size, &header_data, &header_padding].concat();
+        let header = vec![frame_size, &header_data_bytes, &header_padding].concat();
 
         // header-ciphertext = aes(aes-secret, header)
         let mut header_ciphertext = header.to_vec();
@@ -147,11 +157,10 @@ impl Frame {
 
         let frame_data = &frame_data_and_padding[..frame_size as usize];
         // frame-data = msg-id || msg-data
-        let msg_id = rlp::decode(&frame_data).unwrap();
+        let mut buffer = frame_data;
+        let msg_id = u64::decode(&mut buffer).unwrap();
 
-        // Re-encode the msg_id to know how many RLP bytes it needs.
-        let encoded = rlp::encode(&msg_id);
-        let (_, msg_data) = frame_data.split_at(encoded.len());
+        let msg_data = buffer;
 
         let message = Frame {
             msg_id,
