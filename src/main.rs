@@ -3,7 +3,7 @@
 // - remove calls to panic
 
 use clap::Parser;
-use rlpx::{enode::ENode, rlpx_handshake::EthereumNode};
+use rlpx::{enode::ENode, node::EthereumNode};
 pub mod rlpx;
 
 #[derive(Parser, Debug)]

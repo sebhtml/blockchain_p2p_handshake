@@ -70,8 +70,8 @@ impl EthereumNode {
 
     /// See RLPx : https://github.com/ethereum/devp2p/blob/master/rlpx.md
     pub fn do_handshake(&self, recipient_enode: &ENode) -> Result<Secrets, HandshakeError> {
-        let socket = get_socket(&recipient_enode.ip_addr, recipient_enode.port)?;
-        let mut stream = TcpStream::connect(socket).unwrap();
+        let recipient_socket = get_socket(&recipient_enode.ip_addr, recipient_enode.port)?;
+        let mut stream = TcpStream::connect(recipient_socket).unwrap();
         let mut rng = secp256k1::rand::thread_rng();
 
         let recipient_static_pk: PublicKey = recipient_enode.try_into()?;
