@@ -83,7 +83,6 @@ impl EthereumNode {
         let ack_body = ecies_decrypt(&self.static_sk, peer.static_pk(), &enc_ack_body, &ack_size)?;
 
         // Convert arc-body to AckMessage.
-        // TODO remove from_rlp_list.
         let ack_message = AckMessage::decode(&mut ack_body.as_slice()).unwrap();
         let recipient_ephemeral_pubk = vec![
             [4].as_slice(),

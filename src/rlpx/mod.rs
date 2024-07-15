@@ -4,7 +4,3 @@ pub mod handshake_error;
 pub mod node;
 pub mod p2p;
 pub mod peer;
-
-pub trait IntoRlpList {
-    fn into_rlp_list(&self) -> Vec<u8>;
-}
