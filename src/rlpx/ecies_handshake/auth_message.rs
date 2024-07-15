@@ -28,7 +28,6 @@ impl AuthMessage {
         initiator_static_sk: &SecretKey,
         initiator_static_pk: &PublicKey,
         initiator_ephemeral_sk: &SecretKey,
-        _initiator_ephemeral_pk: &PublicKey,
         recipient_static_pk: &PublicKey,
     ) -> Result<AuthMessage, HandshakeError> {
         let shared_secret = ecdh_agree(initiator_static_sk, recipient_static_pk);

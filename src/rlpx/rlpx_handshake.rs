@@ -67,7 +67,8 @@ pub fn do_rlpx_handshake_as_initiator(
     let recipient_static_pk: PublicKey = recipient_enode.try_into()?;
     let initiator_nonce = make_nonce();
 
-    let (initiator_ephemeral_sk, initiator_ephemeral_pk) = generate_keypair(&mut rng);
+    // TODO it is weird that we don't need initiator_ephemeral_pk.
+    let (initiator_ephemeral_sk, _initiator_ephemeral_pk) = generate_keypair(&mut rng);
 
     // Generate auth packet.
     let auth_message = AuthMessage::try_new(
@@ -75,7 +76,6 @@ pub fn do_rlpx_handshake_as_initiator(
         initiator_static_sk,
         initiator_static_pk,
         &initiator_ephemeral_sk,
-        &initiator_ephemeral_pk,
         &recipient_static_pk,
     )?;
     let auth = prepare_auth_packet(
