@@ -11,6 +11,9 @@ use crate::rlpx::{
     p2p::mac::MacState,
 };
 
+use aes::cipher::KeyIvInit;
+use aes::Aes256;
+use ctr::Ctr64BE;
 use secp256k1::{generate_keypair, PublicKey, SecretKey};
 use std::io::ErrorKind;
 use std::{
@@ -122,15 +125,21 @@ pub fn do_rlpx_handshake_as_initiator(
         &initiator_nonce,
     );
 
+    // key and iv for egress and ingress
+    let aes_secret = secrets.aes_secret.as_slice();
+    let iv = [0 as u8; 16].as_slice();
+
     // Initiate egress
     let mut egress_mac = MacState::new(&secrets.mac_secret);
     egress_mac.update(&xor(&secrets.mac_secret, recipient_nonce));
     egress_mac.update(&auth);
 
-    // Ingress MAC states.
+    // Ingress MAC and cipher
     let mut ingress_mac = MacState::new(&secrets.mac_secret);
     ingress_mac.update(&xor(&secrets.mac_secret, &initiator_nonce));
     ingress_mac.update(&ack);
+
+    let mut ingress_cipher = Ctr64BE::<Aes256>::new(aes_secret.into(), iv.into());
 
     // Send Hello to recipient
     // TODO don't put hello method in Message namespace.
@@ -154,7 +163,7 @@ pub fn do_rlpx_handshake_as_initiator(
 
     let recipient_hello = Frame::read_frame(
         &recipient_hello_frame,
-        &secrets.aes_secret,
+        &mut ingress_cipher,
         &mut ingress_mac,
     )?;
 

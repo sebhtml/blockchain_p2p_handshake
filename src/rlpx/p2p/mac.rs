@@ -20,7 +20,7 @@ impl MacState {
     pub fn new(mac_secret: &[u8; 32]) -> Self {
         Self {
             mac_secret: mac_secret.to_owned(),
-            state: Keccak256::new(),
+            state: <Keccak256 as Digest>::new(),
         }
     }
 

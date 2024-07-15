@@ -122,7 +122,7 @@ impl Frame {
     /// See https://github.com/ethereum/devp2p/blob/master/rlpx.md
     pub fn read_frame(
         frame: &[u8],
-        aes_secret: &[u8; 32],
+        cipher: &mut impl StreamCipher,
         ingress_mac: &mut MacState,
     ) -> Result<Frame, HandshakeError> {
         // frame = header-ciphertext || header-mac || frame-ciphertext || frame-mac
@@ -141,11 +141,6 @@ impl Frame {
         if frame_mac != mac_tags.frame_mac {
             return Err(HandshakeError::HmacValidationFailure);
         }
-
-        // Use AES to decrypt.
-        let aes_secret = aes_secret.as_slice();
-        let iv = [0 as u8; 16].as_slice();
-        let mut cipher = Ctr64BE::<Aes256>::new(aes_secret.into(), iv.into());
 
         // header-ciphertext = aes(aes-secret, header)
 
