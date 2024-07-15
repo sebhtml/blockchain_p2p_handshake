@@ -12,15 +12,16 @@ pub struct FrameMacTags {
 }
 
 pub struct MacState {
-    mac_secret: [u8; 32],
     state: Keccak256,
+    cipher: Aes256Enc,
 }
 
 impl MacState {
     pub fn new(mac_secret: &[u8; 32]) -> Self {
+        let cipher = Aes256Enc::new_from_slice(mac_secret).unwrap();
         Self {
-            mac_secret: mac_secret.to_owned(),
             state: <Keccak256 as Digest>::new(),
+            cipher,
         }
     }
 
@@ -53,13 +54,10 @@ impl MacState {
     fn update_with_header_ciphertext(&mut self, header_ciphertext: &[u8; 16]) -> [u8; 16] {
         let mac = self.mac();
 
-        let mac_secret = self.mac_secret.as_slice();
-        let cipher = Aes256Enc::new_from_slice(mac_secret.into()).unwrap();
-
         let mut aes_mac = mac.to_vec();
         let msg_len = aes_mac.len();
 
-        cipher
+        self.cipher
             .encrypt_padded::<NoPadding>(&mut aes_mac, msg_len)
             .unwrap();
 
@@ -73,13 +71,11 @@ impl MacState {
         self.update(frame_ciphertext);
 
         let mac = self.mac();
-        let mac_secret = self.mac_secret.as_slice();
-        let cipher = Aes256Enc::new_from_slice(mac_secret.into()).unwrap();
 
         let mut aes_mac = mac.to_vec();
         let msg_len = aes_mac.len();
 
-        cipher
+        self.cipher
             .encrypt_padded::<NoPadding>(&mut aes_mac, msg_len)
             .unwrap();
 
