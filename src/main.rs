@@ -18,8 +18,9 @@ fn main() {
     let recipient = args.recipient;
     let recipient: ENode = recipient.as_str().try_into().unwrap();
 
-    let initiator = EthereumNode::new();
-    let result = initiator.do_handshake(&recipient);
+    let node = EthereumNode::new();
+    let result = node.add_peer(&recipient);
+
     match result {
         Ok(_ephemeral_secrets) => println!(
             "Handshake with {}:{} was successful",

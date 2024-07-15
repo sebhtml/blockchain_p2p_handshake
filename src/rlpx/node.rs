@@ -4,6 +4,7 @@ use crate::rlpx::ecies_handshake::{
 use crate::rlpx::p2p::disconnect_message::{DisconnectMessageData, Reason, DISCONNECT_MSG_ID};
 use crate::rlpx::p2p::frame::Frame;
 use crate::rlpx::p2p::hello_message::{HelloMessageData, HELLO_MSG_ID};
+use crate::rlpx::peer::Peer;
 use crate::rlpx::{
     ecies_handshake::{
         auth_message::{prepare_auth_packet, AuthMessage},
@@ -68,13 +69,16 @@ impl EthereumNode {
         }
     }
 
+    /// Use the 'p2p' capability to add a peer.
     /// See RLPx : https://github.com/ethereum/devp2p/blob/master/rlpx.md
-    pub fn do_handshake(&self, recipient_enode: &ENode) -> Result<Secrets, HandshakeError> {
+    pub fn add_peer(&self, recipient_enode: &ENode) -> Result<Secrets, HandshakeError> {
+        let peer = Peer::new(recipient_enode)?;
+        let recipient_static_pk = peer.static_pk();
+
         let recipient_socket = get_socket(&recipient_enode.ip_addr, recipient_enode.port)?;
         let mut stream = TcpStream::connect(recipient_socket).unwrap();
         let mut rng = secp256k1::rand::thread_rng();
 
-        let recipient_static_pk: PublicKey = recipient_enode.try_into()?;
         let initiator_nonce = make_nonce();
 
         // TODO it is weird that we don't need initiator_ephemeral_pk.
@@ -86,12 +90,12 @@ impl EthereumNode {
             &self.static_sk,
             &self.static_pk,
             &initiator_ephemeral_sk,
-            &recipient_static_pk,
+            recipient_static_pk,
         )?;
         let auth = prepare_auth_packet(
             &self.static_sk,
             &self.static_pk,
-            &recipient_static_pk,
+            recipient_static_pk,
             &auth_message,
         )?;
 
@@ -113,7 +117,7 @@ impl EthereumNode {
         let (ack_size, enc_ack_body) = ack.split_at(2);
         let ack_body = ecies_decrypt(
             &self.static_sk,
-            &recipient_static_pk,
+            recipient_static_pk,
             &enc_ack_body,
             &ack_size,
         )?;
