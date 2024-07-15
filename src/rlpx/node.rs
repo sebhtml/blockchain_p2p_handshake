@@ -1,3 +1,4 @@
+use crate::rlpx::connection::Connection;
 use crate::rlpx::ecies_handshake::auth_message::{prepare_auth_packet, AuthMessage};
 use crate::rlpx::ecies_handshake::xor::xor;
 use crate::rlpx::ecies_handshake::{
@@ -7,7 +8,6 @@ use crate::rlpx::p2p::disconnect_message::{DisconnectMessageData, Reason, DISCON
 use crate::rlpx::p2p::frame::Frame;
 use crate::rlpx::p2p::hello_message::{HelloMessageData, HELLO_MSG_ID};
 use crate::rlpx::p2p::mac::MacState;
-use crate::rlpx::peer::Peer;
 use aes::cipher::KeyIvInit;
 use aes::Aes256;
 use alloy_rlp::Decodable;
@@ -36,7 +36,7 @@ impl EthereumNode {
         &self,
         initiator_nonce: &[u8; 32],
         initiator_ephemeral_sk: &SecretKey,
-        peer: &mut Peer,
+        peer: &mut Connection,
     ) -> Result<Vec<u8>, HandshakeError> {
         let auth_message = AuthMessage::try_new(
             &initiator_nonce,
@@ -63,7 +63,7 @@ impl EthereumNode {
     /// Use the 'p2p' capability to add a peer.
     /// See RLPx : https://github.com/ethereum/devp2p/blob/master/rlpx.md
     pub fn add_peer(&self, recipient_enode: &ENode) -> Result<bool, HandshakeError> {
-        let mut peer = Peer::new(recipient_enode)?;
+        let mut connection = Connection::new(recipient_enode)?;
 
         let mut rng = secp256k1::rand::thread_rng();
 
@@ -73,10 +73,10 @@ impl EthereumNode {
         let (initiator_ephemeral_sk, _initiator_ephemeral_pk) = generate_keypair(&mut rng);
 
         // Send Auth
-        let auth = self.send_auth(&initiator_nonce, &initiator_ephemeral_sk, &mut peer)?;
+        let auth = self.send_auth(&initiator_nonce, &initiator_ephemeral_sk, &mut connection)?;
 
         // Read Ack
-        let ack = peer.read_bytes()?;
+        let ack = connection.read_bytes()?;
 
         if ack.len() == 0 {
             return Err(HandshakeError::RecipientDisconnected);
@@ -85,7 +85,12 @@ impl EthereumNode {
         // ack = ack-size || enc-ack-body
         // ack-size = size of enc-ack-body, encoded as a big-endian 16-bit integer
         let (ack_size, enc_ack_body) = ack.split_at(2);
-        let ack_body = ecies_decrypt(&self.static_sk, peer.static_pk(), &enc_ack_body, &ack_size)?;
+        let ack_body = ecies_decrypt(
+            &self.static_sk,
+            connection.static_pk(),
+            &enc_ack_body,
+            &ack_size,
+        )?;
 
         // Convert arc-body to AckMessage.
         let ack_message = AckMessage::decode(&mut ack_body.as_slice()).unwrap();
@@ -101,7 +106,7 @@ impl EthereumNode {
         // Generate session secrets.
         let secrets = Secrets::new(
             &self.static_sk,
-            &peer.static_pk(),
+            &connection.static_pk(),
             &initiator_ephemeral_sk,
             &remote_ephemeral_pk,
             recipient_nonce,
@@ -135,14 +140,14 @@ impl EthereumNode {
         .into();
         let egress_frame_bytes = egress_frame.write_frame(&mut egress_cipher, &mut egress_mac)?;
 
-        let bytes_written = peer.write_bytes(&egress_frame_bytes)?;
+        let bytes_written = connection.write_bytes(&egress_frame_bytes)?;
         println!("wrote Hello with len {}", bytes_written);
         if bytes_written != egress_frame_bytes.len() {
             return Err(HandshakeError::IOError("bad bytes_written".into()));
         }
 
         // Receive hello from recipient
-        let ingress_frame_bytes = peer.read_bytes()?;
+        let ingress_frame_bytes = connection.read_bytes()?;
 
         let ingress_frame =
             Frame::read_frame(&ingress_frame_bytes, &mut ingress_cipher, &mut ingress_mac)?;
@@ -163,7 +168,7 @@ impl EthereumNode {
         // Receive Disconnect from recipient.
         // The recipient node is probably going to disconnect since we don't implement the
         // "eth" capability in this handshake client.
-        let ingress_frame_bytes = peer.read_bytes()?;
+        let ingress_frame_bytes = connection.read_bytes()?;
         let ingress_frame =
             Frame::read_frame(&ingress_frame_bytes, &mut ingress_cipher, &mut ingress_mac)?;
 
@@ -182,14 +187,14 @@ impl EthereumNode {
         // Send Disconnect to recipient
         let egress_frame: Frame = DisconnectMessageData::new(Reason::DisconnectRequested).into();
         let egress_frame_bytes = egress_frame.write_frame(&mut egress_cipher, &mut egress_mac)?;
-        let bytes_written = peer.write_bytes(&egress_frame_bytes)?;
+        let bytes_written = connection.write_bytes(&egress_frame_bytes)?;
         println!("wrote Disconnect with len {}", bytes_written);
         if bytes_written != egress_frame_bytes.len() {
             return Err(HandshakeError::IOError("bad bytes_written".into()));
         }
 
         // Verify that the peer has disconnected.
-        let recipient_disconnect_bytes = peer.read_bytes()?;
+        let recipient_disconnect_bytes = connection.read_bytes()?;
         if recipient_disconnect_bytes.len() != 0 {
             return Err(HandshakeError::RecipientDidNotDisconnect);
         }
