@@ -79,13 +79,13 @@ impl Frame {
         let header = vec![frame_size, &header_data_bytes, &header_padding].concat();
 
         // header-ciphertext = aes(aes-secret, header)
-        let mut header_ciphertext = header.to_vec();
+        let mut header_ciphertext = header.clone();
         cipher.apply_keystream(&mut header_ciphertext);
 
         // frame-ciphertext = aes(aes-secret, frame-data || frame-padding)
         let frame_data_and_padding = vec![frame_data, frame_padding].concat();
 
-        let mut frame_ciphertext = frame_data_and_padding.to_vec();
+        let mut frame_ciphertext = frame_data_and_padding.clone();
         cipher.apply_keystream(&mut frame_ciphertext);
 
         let texts = FrameCipherTexts {
@@ -144,7 +144,7 @@ impl Frame {
         }
 
         // header-ciphertext = aes(aes-secret, header)
-        let mut header = header_ciphertext.to_vec();
+        let mut header = header_ciphertext.clone();
         cipher.apply_keystream(&mut header);
 
         // header = frame-size || header-data || header-padding
@@ -152,7 +152,7 @@ impl Frame {
         let frame_size = u32::from_be_bytes(frame_size_bytes);
 
         // frame-ciphertext = aes(aes-secret, frame-data || frame-padding)
-        let mut frame_data_and_padding = frame_ciphertext.to_vec();
+        let mut frame_data_and_padding = frame_ciphertext.to_owned();
         cipher.apply_keystream(&mut frame_data_and_padding);
 
         let frame_data = &frame_data_and_padding[..frame_size as usize];

@@ -69,7 +69,7 @@ fn generate_hmac_tag(
 /// See https://github.com/ethereum/devp2p/blob/master/rlpx.md
 fn aes_128_ctr_128(key: &[u8], iv: &[u8], msg: &[u8]) -> Vec<u8> {
     let mut cipher = Ctr128BE::<Aes128>::new(key.into(), iv.into());
-    let mut applied_message = msg.to_vec();
+    let mut applied_message = msg.to_owned();
     cipher.apply_keystream(&mut applied_message);
     applied_message
 }
