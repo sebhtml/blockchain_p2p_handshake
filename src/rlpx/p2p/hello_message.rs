@@ -65,11 +65,11 @@ mod tests {
     #[test]
     fn test_encode_decode_hello_msg_data() {
         let node_id = vec![3; 64];
-        let msg_data = HelloMessageData::new(&node_id.try_into().unwrap());
+        let encodable = HelloMessageData::new(&node_id.try_into().unwrap());
         let mut rlp_bytes = vec![];
-        msg_data.encode(&mut rlp_bytes);
+        encodable.encode(&mut rlp_bytes);
         let mut rlp_bytes = rlp_bytes.as_slice();
-        let decoded_msg_data = HelloMessageData::decode(&mut rlp_bytes).unwrap();
-        assert_eq!(decoded_msg_data, msg_data);
+        let decoded = HelloMessageData::decode(&mut rlp_bytes).unwrap();
+        assert_eq!(decoded, encodable);
     }
 }

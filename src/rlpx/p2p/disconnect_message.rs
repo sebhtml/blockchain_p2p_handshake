@@ -108,11 +108,11 @@ mod tests {
 
     #[test]
     fn test_encode_decode_disconnect_msg_data() {
-        let msg_data = DisconnectMessageData { reason: 4 };
+        let encodable = DisconnectMessageData { reason: 4 };
         let mut rlp_bytes = vec![];
-        msg_data.encode(&mut rlp_bytes);
+        encodable.encode(&mut rlp_bytes);
         let mut rlp_bytes = rlp_bytes.as_slice();
-        let decoded_msg_data = DisconnectMessageData::decode(&mut rlp_bytes).unwrap();
-        assert_eq!(decoded_msg_data, msg_data);
+        let decoded = DisconnectMessageData::decode(&mut rlp_bytes).unwrap();
+        assert_eq!(decoded, encodable);
     }
 }

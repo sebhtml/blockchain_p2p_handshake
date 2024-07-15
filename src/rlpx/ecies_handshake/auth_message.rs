@@ -1,8 +1,8 @@
+use alloy_rlp::{Encodable, RlpDecodable, RlpEncodable};
 use rand::Rng;
-use rlp::RlpStream;
 use secp256k1::{Message, PublicKey, Secp256k1, SecretKey};
 
-use crate::rlpx::{handshake_error::HandshakeError, IntoRlpList};
+use crate::rlpx::handshake_error::HandshakeError;
 
 use super::{
     ecies::{ecdh_agree, ecies_encrypt},
@@ -13,7 +13,7 @@ pub const NONCE_LENGTH: usize = 32;
 
 /// auth-body = [sig, initiator-pubk, initiator-nonce, auth-vsn, ...]
 /// See https://github.com/ethereum/devp2p/blob/master/rlpx.md
-#[derive(Debug)]
+#[derive(Debug, PartialEq, RlpEncodable, RlpDecodable)]
 pub struct AuthMessage {
     pub sig: [u8; 65],
     // TODO use 65 for pubk
@@ -55,17 +55,6 @@ impl AuthMessage {
     }
 }
 
-impl IntoRlpList for AuthMessage {
-    fn into_rlp_list(&self) -> Vec<u8> {
-        let mut rlp = RlpStream::new_list(4);
-        rlp.append(&self.sig.as_slice());
-        rlp.append(&self.initiator_pubk.to_vec());
-        rlp.append(&self.initiator_nonce.as_slice());
-        rlp.append(&self.auth_vsn);
-        rlp.out().to_vec()
-    }
-}
-
 pub fn prepare_auth_packet(
     initiator_ephemeral_sk: &SecretKey,
     initiator_static_pk: &PublicKey,
@@ -73,7 +62,8 @@ pub fn prepare_auth_packet(
     auth_message: &AuthMessage,
 ) -> Result<Vec<u8>, HandshakeError> {
     // Encode auth with RLP
-    let auth_body = auth_message.into_rlp_list();
+    let mut auth_body = vec![];
+    auth_message.encode(&mut auth_body);
 
     // Add random padding
     let mut rng = rand::thread_rng();
@@ -98,4 +88,26 @@ pub fn prepare_auth_packet(
     let auth_packet = [&auth_size, enc_auth_body.as_slice()].concat();
 
     Ok(auth_packet)
+}
+
+#[cfg(test)]
+mod tests {
+    use alloy_rlp::{Decodable, Encodable};
+
+    use super::*;
+
+    #[test]
+    fn test_encode_decode_auth() {
+        let encodable = AuthMessage {
+            sig: [5; 65],
+            initiator_pubk: [7; 64],
+            initiator_nonce: [9; 32],
+            auth_vsn: 42,
+        };
+        let mut rlp_bytes = vec![];
+        encodable.encode(&mut rlp_bytes);
+        let mut rlp_bytes = rlp_bytes.as_slice();
+        let decoded_msg_data = AuthMessage::decode(&mut rlp_bytes).unwrap();
+        assert_eq!(decoded_msg_data, encodable);
+    }
 }
