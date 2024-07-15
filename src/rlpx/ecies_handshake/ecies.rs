@@ -63,7 +63,7 @@ fn generate_hmac_tag(
     auth_data: &[u8],
 ) -> Result<[u8; 32], HandshakeError> {
     let mut hmac =
-        Hmac::<Sha256>::new_from_slice(mac_key).map_err(|_| HandshakeError::HmacGenerationError)?;
+        Hmac::<Sha256>::new_from_slice(mac_key).map_err(|_| HandshakeError::MacGenerationError)?;
     hmac.update(&iv);
     hmac.update(&encrypted_message);
     hmac.update(auth_data);
@@ -128,7 +128,7 @@ pub fn ecies_decrypt(
     let tag = generate_hmac_tag(mac_key, &iv, &encrypted_message, auth_data)?;
 
     if &tag != msg_hmac_tag {
-        return Err(HandshakeError::HmacValidationFailure);
+        return Err(HandshakeError::MacValidationFailure);
     }
 
     let ack_body_and_padding = aes_128_ctr_128(aes_key, &iv, &encrypted_message);

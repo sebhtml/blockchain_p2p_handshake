@@ -89,7 +89,9 @@ impl Frame {
         cipher.apply_keystream(&mut frame_ciphertext);
 
         let texts = FrameCipherTexts {
-            header_ciphertext: header_ciphertext.try_into().unwrap(),
+            header_ciphertext: header_ciphertext
+                .try_into()
+                .map_err(|_| HandshakeError::FrameReadError)?,
             frame_ciphertext,
         };
         Ok(texts)
@@ -104,7 +106,7 @@ impl Frame {
         let header_ciphertext = &cipher_texts.header_ciphertext;
         let frame_ciphertext = &cipher_texts.frame_ciphertext;
 
-        let mac_tags = egress_mac.update_with_ciphertexts(header_ciphertext, frame_ciphertext);
+        let mac_tags = egress_mac.update_with_ciphertexts(header_ciphertext, frame_ciphertext)?;
         let header_mac = &mac_tags.header_mac;
         let frame_mac = &mac_tags.frame_mac;
 
@@ -131,16 +133,20 @@ impl Frame {
         let (header_mac, rest) = rest.split_at(16);
         let (frame_ciphertext, frame_mac) = rest.split_at(rest.len() - 16);
 
-        let header_ciphertext: [u8; 16] = header_ciphertext.try_into().unwrap();
-        let header_mac: [u8; 16] = header_mac.try_into().unwrap();
+        let header_ciphertext: [u8; 16] = header_ciphertext
+            .try_into()
+            .map_err(|_| HandshakeError::FrameReadError)?;
+        let header_mac: [u8; 16] = header_mac
+            .try_into()
+            .map_err(|_| HandshakeError::FrameReadError)?;
 
         // Do the MAC check
-        let mac_tags = ingress_mac.update_with_ciphertexts(&header_ciphertext, frame_ciphertext);
+        let mac_tags = ingress_mac.update_with_ciphertexts(&header_ciphertext, frame_ciphertext)?;
         if header_mac != mac_tags.header_mac {
-            return Err(HandshakeError::HmacValidationFailure);
+            return Err(HandshakeError::MacValidationFailure);
         }
         if frame_mac != mac_tags.frame_mac {
-            return Err(HandshakeError::HmacValidationFailure);
+            return Err(HandshakeError::MacValidationFailure);
         }
 
         // header-ciphertext = aes(aes-secret, header)
@@ -148,7 +154,10 @@ impl Frame {
         cipher.apply_keystream(&mut header);
 
         // header = frame-size || header-data || header-padding
-        let frame_size_bytes: [u8; 4] = vec![&vec![0], &header[..3]].concat().try_into().unwrap();
+        let frame_size_bytes: [u8; 4] = vec![&vec![0], &header[..3]]
+            .concat()
+            .try_into()
+            .map_err(|_| HandshakeError::FrameReadError)?;
         let frame_size = u32::from_be_bytes(frame_size_bytes);
 
         // frame-ciphertext = aes(aes-secret, frame-data || frame-padding)
@@ -158,7 +167,7 @@ impl Frame {
         let frame_data = &frame_data_and_padding[..frame_size as usize];
         // frame-data = msg-id || msg-data
         let mut buffer = frame_data;
-        let msg_id = u64::decode(&mut buffer).unwrap();
+        let msg_id = u64::decode(&mut buffer).map_err(|_| HandshakeError::RlpDecodeError)?;
 
         let msg_data = buffer;
 

@@ -9,8 +9,8 @@ pub enum HandshakeError {
     BadRecipientPortInteger,
     IOError(String),
     Secp256k1Error(String),
-    HmacValidationFailure,
-    HmacGenerationError,
+    MacValidationFailure,
+    MacGenerationError,
     HexError(String),
     RlpDecodeError,
     BadRecipientHelloMsgId,
@@ -23,6 +23,7 @@ pub enum HandshakeError {
     RecipientReturnedUndesiredBytes,
     FrameSizeTooLarge,
     FailedToPrepareCryptoMaterial,
+    FrameReadError,
 }
 
 impl Display for HandshakeError {
@@ -32,8 +33,8 @@ impl Display for HandshakeError {
             HandshakeError::BadRecipientPortInteger => write!(f, "BadTargetPortInteger"),
             HandshakeError::IOError(err) => write!(f, "IOError: {}", err),
             HandshakeError::BadENodeId => write!(f, "BadENodeId"),
-            HandshakeError::HmacValidationFailure => write!(f, "HmacValidationFailure"),
-            HandshakeError::HmacGenerationError => write!(f, "HmacGenerationError"),
+            HandshakeError::MacValidationFailure => write!(f, "MacValidationFailure"),
+            HandshakeError::MacGenerationError => write!(f, "MacGenerationError"),
             HandshakeError::CryptoKeyError => write!(f, "CryptoKeyError"),
             HandshakeError::BadRegex(err) => write!(f, "BadRegex: {}", err),
             HandshakeError::Secp256k1Error(err) => write!(f, "Secp256k1Error: {}", err),
@@ -65,6 +66,7 @@ impl Display for HandshakeError {
                 write!(f, "RecipientReturnedUndesiredBytes")
             }
             HandshakeError::FrameSizeTooLarge => write!(f, "FrameSizeTooLarge"),
+            HandshakeError::FrameReadError => write!(f, "FrameReadError"),
         }
     }
 }

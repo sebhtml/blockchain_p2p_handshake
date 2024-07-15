@@ -290,13 +290,13 @@ impl Connection {
         let iv = [0 as u8; 16].as_slice();
 
         // Initiate egress
-        let mut egress_mac = MacState::new(&secrets.mac_secret);
+        let mut egress_mac = MacState::new(&secrets.mac_secret)?;
         egress_mac.update(&xor(&secrets.mac_secret, recipient_nonce));
         egress_mac.update(&auth);
         let egress_cipher = Ctr64BE::<Aes256>::new(aes_secret.into(), iv.into());
 
         // Ingress MAC and cipher
-        let mut ingress_mac = MacState::new(&secrets.mac_secret);
+        let mut ingress_mac = MacState::new(&secrets.mac_secret)?;
         ingress_mac.update(&xor(&secrets.mac_secret, initiator_nonce));
         ingress_mac.update(&ack);
         let ingress_cipher = Ctr64BE::<Aes256>::new(aes_secret.into(), iv.into());
