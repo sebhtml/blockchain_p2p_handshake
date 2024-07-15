@@ -187,6 +187,9 @@ pub fn do_rlpx_handshake_as_initiator(
             if bytes_read == 0 {
                 return Err(HandshakeError::RecipientDisconnected);
             } else {
+                println!("bytes_read {}", bytes_read);
+                // this is a Disconnect
+                // TRACE[07-15|06:27:50.989] Rejected peer                            id=7de4abe34ed36789 addr=127.0.0.1:52118 conn=inbound err="useless peer"
                 return Err(HandshakeError::RecipientReturnedUndesiredBytes);
             }
         }
