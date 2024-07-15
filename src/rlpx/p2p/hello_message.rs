@@ -9,7 +9,7 @@ pub struct Capability {
     pub version: u32,
 }
 
-pub const HELLO_MSG_ID: u64 = 0;
+pub const HELLO_MSG_ID: u64 = 0x00;
 
 #[derive(Debug, PartialEq, alloy_rlp::RlpDecodable, alloy_rlp::RlpEncodable)]
 pub struct HelloMessageData {
@@ -51,10 +51,9 @@ impl TryFrom<Frame> for HelloMessageData {
     type Error = HandshakeError;
 
     fn try_from(value: Frame) -> Result<Self, Self::Error> {
-        // Decode msg_data into HelloMessageData
         let mut msg_data = value.msg_data.as_slice();
-        let hello_msg_data = HelloMessageData::decode(&mut msg_data).unwrap();
-        Ok(hello_msg_data)
+        let msg_data = HelloMessageData::decode(&mut msg_data).unwrap();
+        Ok(msg_data)
     }
 }
 
@@ -65,11 +64,11 @@ mod tests {
     #[test]
     fn test_encode_decode_hello_msg_data() {
         let node_id = vec![3; 64];
-        let hello_msg_data = HelloMessageData::new(&node_id.try_into().unwrap());
+        let msg_data = HelloMessageData::new(&node_id.try_into().unwrap());
         let mut rlp_bytes = vec![];
-        hello_msg_data.encode(&mut rlp_bytes);
+        msg_data.encode(&mut rlp_bytes);
         let mut rlp_bytes = rlp_bytes.as_slice();
-        let decoded_hello_msg_data = HelloMessageData::decode(&mut rlp_bytes).unwrap();
-        assert_eq!(decoded_hello_msg_data, hello_msg_data);
+        let decoded_msg_data = HelloMessageData::decode(&mut rlp_bytes).unwrap();
+        assert_eq!(decoded_msg_data, msg_data);
     }
 }

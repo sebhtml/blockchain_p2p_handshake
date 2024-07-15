@@ -134,20 +134,24 @@ impl Frame {
         }
 
         // header-ciphertext = aes(aes-secret, header)
-
         let mut header = header_ciphertext.to_vec();
         cipher.apply_keystream(&mut header);
+
+        // header = frame-size || header-data || header-padding
+        let frame_size_bytes: [u8; 4] = vec![&vec![0], &header[..3]].concat().try_into().unwrap();
+        let frame_size = u32::from_be_bytes(frame_size_bytes);
 
         // frame-ciphertext = aes(aes-secret, frame-data || frame-padding)
         let mut frame_data_and_padding = frame_ciphertext.to_vec();
         cipher.apply_keystream(&mut frame_data_and_padding);
 
+        let frame_data = &frame_data_and_padding[..frame_size as usize];
         // frame-data = msg-id || msg-data
-        let msg_id = rlp::decode(&frame_data_and_padding).unwrap();
+        let msg_id = rlp::decode(&frame_data).unwrap();
 
         // Re-encode the msg_id to know how many RLP bytes it needs.
         let encoded = rlp::encode(&msg_id);
-        let (_, msg_data) = frame_data_and_padding.split_at(encoded.len());
+        let (_, msg_data) = frame_data.split_at(encoded.len());
 
         let message = Frame {
             msg_id,

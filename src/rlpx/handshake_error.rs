@@ -18,6 +18,8 @@ pub enum HandshakeError {
     RecipientHelloNodeIdMismatch,
     RecipientDoesNotSupportP2pCapability,
     RecipientDisconnected,
+    RecipientDidNotDisconnect,
+    InvalidDisconnectReason,
     RecipientReturnedUndesiredBytes,
     FrameSizeTooLarge,
 }
@@ -45,6 +47,12 @@ impl Display for HandshakeError {
             }
             HandshakeError::RecipientDisconnected => {
                 write!(f, "RecipientDisconnected")
+            }
+            HandshakeError::RecipientDidNotDisconnect => {
+                write!(f, "RecipientDidNotDisconnect")
+            }
+            HandshakeError::InvalidDisconnectReason => {
+                write!(f, "InvalidDisconnectReason")
             }
             HandshakeError::RecipientDoesNotSupportP2pCapability => {
                 write!(f, "RecipientDoesNotSupportP2pCapability")

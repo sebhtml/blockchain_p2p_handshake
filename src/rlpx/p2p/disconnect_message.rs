@@ -1,6 +1,112 @@
-use alloy_rlp::{RlpDecodable, RlpEncodable};
+use alloy_rlp::{Decodable, Encodable, RlpEncodable};
 
-#[derive(Debug, PartialEq, RlpDecodable, RlpEncodable)]
+use crate::rlpx::handshake_error::HandshakeError;
+
+use super::frame::Frame;
+
+// TODO use enum for msg id
+pub const DISCONNECT_MSG_ID: u64 = 0x01;
+
+#[derive(Clone, PartialEq)]
+pub enum Reason {
+    DisconnectRequested = 0x00,
+    TcpSubsystemError = 0x01,
+    BreachOfProtocol = 0x02,
+    UselessPeer = 0x03,
+    TooManyPeers = 0x04,
+    AlreadyConnected = 0x05,
+    IncompatibleP2pProtocolVersion = 0x06,
+    NullNodeIdentityReceived = 0x07,
+    ClientQuitting = 0x08,
+    UnexpectedIdentityInHandshake = 0x09,
+    IdentityIsTheSameAsThisNode = 0x0a,
+    PingTimeout = 0x0b,
+    SomeOtherReasonSpecificToASubProtocol = 0x10,
+}
+
+impl TryFrom<u8> for Reason {
+    type Error = HandshakeError;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        let variants = vec![
+            Reason::DisconnectRequested,
+            Reason::TcpSubsystemError,
+            Reason::BreachOfProtocol,
+            Reason::UselessPeer,
+            Reason::TooManyPeers,
+            Reason::AlreadyConnected,
+            Reason::IncompatibleP2pProtocolVersion,
+            Reason::NullNodeIdentityReceived,
+            Reason::ClientQuitting,
+            Reason::UnexpectedIdentityInHandshake,
+            Reason::IdentityIsTheSameAsThisNode,
+            Reason::PingTimeout,
+            Reason::SomeOtherReasonSpecificToASubProtocol,
+        ];
+        let result = variants
+            .into_iter()
+            .find(|variant| variant.to_owned() as u8 == value);
+        match result {
+            Some(variant) => Ok(variant),
+            _ => Err(HandshakeError::InvalidDisconnectReason),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, RlpEncodable)]
 pub struct DisconnectMessageData {
-    reason: u32,
+    reason: u8,
+}
+
+impl Decodable for DisconnectMessageData {
+    fn decode(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
+        // TODO decode this properly...
+        let reason = buf[buf.len() - 1];
+        let msg_data = DisconnectMessageData { reason };
+        Ok(msg_data)
+    }
+}
+
+impl DisconnectMessageData {
+    pub fn reason(&self) -> Result<Reason, HandshakeError> {
+        let reason = self.reason;
+        Reason::try_from(reason)
+    }
+}
+
+impl Into<Frame> for DisconnectMessageData {
+    fn into(self) -> Frame {
+        let mut message_data = vec![];
+        self.encode(&mut message_data);
+
+        Frame {
+            msg_id: DISCONNECT_MSG_ID,
+            msg_data: message_data.into(),
+        }
+    }
+}
+
+impl TryFrom<Frame> for DisconnectMessageData {
+    type Error = HandshakeError;
+
+    fn try_from(value: Frame) -> Result<Self, Self::Error> {
+        let mut msg_data = value.msg_data.as_slice();
+        let msg_data = DisconnectMessageData::decode(&mut msg_data).unwrap();
+        Ok(msg_data)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_encode_decode_disconnect_msg_data() {
+        let msg_data = DisconnectMessageData { reason: 4 };
+        let mut rlp_bytes = vec![];
+        msg_data.encode(&mut rlp_bytes);
+        let mut rlp_bytes = rlp_bytes.as_slice();
+        let decoded_msg_data = DisconnectMessageData::decode(&mut rlp_bytes).unwrap();
+        assert_eq!(decoded_msg_data, msg_data);
+    }
 }

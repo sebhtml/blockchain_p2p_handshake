@@ -1,6 +1,7 @@
 use crate::rlpx::ecies_handshake::{
     ack_message::AckMessage, ecies::ecies_decrypt, nonce::make_nonce, secrets::Secrets,
 };
+use crate::rlpx::p2p::disconnect_message::{DisconnectMessageData, Reason, DISCONNECT_MSG_ID};
 use crate::rlpx::p2p::frame::Frame;
 use crate::rlpx::p2p::hello_message::{HelloMessageData, HELLO_MSG_ID};
 use crate::rlpx::{
@@ -15,12 +16,10 @@ use aes::cipher::KeyIvInit;
 use aes::Aes256;
 use ctr::Ctr64BE;
 use secp256k1::{generate_keypair, PublicKey, SecretKey};
-use std::io::ErrorKind;
 use std::{
     io::{Read, Write},
     net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, TcpStream},
     str::FromStr,
-    time::Duration,
 };
 
 use super::{enode::ENode, handshake_error::HandshakeError};
@@ -129,6 +128,8 @@ pub fn do_rlpx_handshake_as_initiator(
     let aes_secret = secrets.aes_secret.as_slice();
     let iv = [0 as u8; 16].as_slice();
 
+    // TODO add state machine for the message to handle.
+
     // Initiate egress
     let mut egress_mac = MacState::new(&secrets.mac_secret);
     egress_mac.update(&xor(&secrets.mac_secret, recipient_nonce));
@@ -142,73 +143,69 @@ pub fn do_rlpx_handshake_as_initiator(
     let mut ingress_cipher = Ctr64BE::<Aes256>::new(aes_secret.into(), iv.into());
 
     // Send Hello to recipient
-    // TODO don't put hello method in Message namespace.
-    let hello: Frame = HelloMessageData::new(
+    let egress_frame: Frame = HelloMessageData::new(
         &initiator_static_pk.serialize_uncompressed()[1..]
             .try_into()
             .unwrap(),
     )
     .into();
-    let hello_bytes = hello.write_frame(&mut egress_cipher, &mut egress_mac)?;
+    let egress_frame_bytes = egress_frame.write_frame(&mut egress_cipher, &mut egress_mac)?;
 
     // Send hello to recipient
-    let bytes_written = write_bytes(&mut stream, &hello_bytes)?;
+    let bytes_written = write_bytes(&mut stream, &egress_frame_bytes)?;
     println!("wrote hello with len {}", bytes_written);
-    if bytes_written != hello_bytes.len() {
+    if bytes_written != egress_frame_bytes.len() {
         return Err(HandshakeError::IOError("bad bytes_written".into()));
     }
 
     // Receive hello from recipient
+    let ingress_frame_bytes = read_bytes(&mut stream)?;
 
-    let recipient_hello_bytes = read_bytes(&mut stream)?;
-
-    let recipient_hello_frame = Frame::read_frame(
-        &recipient_hello_bytes,
-        &mut ingress_cipher,
-        &mut ingress_mac,
-    )?;
+    let ingress_frame =
+        Frame::read_frame(&ingress_frame_bytes, &mut ingress_cipher, &mut ingress_mac)?;
 
     // Check message id
-    if recipient_hello_frame.msg_id != HELLO_MSG_ID {
+    if ingress_frame.msg_id != HELLO_MSG_ID {
         return Err(HandshakeError::BadRecipientHelloMsgId);
     }
 
-    let recipient_hello_data: HelloMessageData = recipient_hello_frame.try_into()?;
-    println!("recipient_hello_data {:?}", recipient_hello_data);
+    let ingress_msg_data: HelloMessageData = ingress_frame.try_into()?;
+    println!("recipient HelloMessageData {:?}", ingress_msg_data);
 
     // Check protocol version
-    if recipient_hello_data.protocol_version != 5 {
+    if ingress_msg_data.protocol_version != 5 {
         return Err(HandshakeError::RecipientHelloP2pProtocolMismatch);
     }
 
-    // Verify that the recipient has not disconnected from the TCP/IP connection.
-    // If the recipient disconnected, it means that its igress MAC check.
-    // If the recipient is not disconnected, doing a read with timeout should time out.
+    // The recipient node is probably going to disconnect since we don't implement the
+    // "eth" capability in this handshake client.
+    let ingress_frame_bytes = read_bytes(&mut stream)?;
+    let ingress_frame =
+        Frame::read_frame(&ingress_frame_bytes, &mut ingress_cipher, &mut ingress_mac)?;
 
-    // TODO Implement Disconnect since the recipient node is probably going to disconnect since we don't implement the
-    // eth capability.
-    stream
-        .set_read_timeout(Some(Duration::from_secs(1)))
-        .map_err(|err| HandshakeError::IOError(err.to_string()))?;
-    let mut buffer = vec![0; 2048];
-    let result = stream.read(&mut buffer);
-    match result {
-        Ok(bytes_read) => {
-            if bytes_read == 0 {
-                return Err(HandshakeError::RecipientDisconnected);
-            } else {
-                println!("bytes_read {}", bytes_read);
-                // this is a Disconnect
-                // TRACE[07-15|06:27:50.989] Rejected peer                            id=7de4abe34ed36789 addr=127.0.0.1:52118 conn=inbound err="useless peer"
-                return Err(HandshakeError::RecipientReturnedUndesiredBytes);
-            }
-        }
-        Err(err) => {
-            if err.kind() != ErrorKind::TimedOut {
-                return Err(HandshakeError::IOError(err.to_string()));
-            }
-        }
+    // Check message id
+    if ingress_frame.msg_id != DISCONNECT_MSG_ID {
+        return Err(HandshakeError::RecipientDidNotDisconnect);
     }
+
+    let ingress_msg_data: DisconnectMessageData = ingress_frame.try_into()?;
+    println!("recipient DisconnectMessageData {:?}", ingress_msg_data);
+
+    // Check protocol version
+    if ingress_msg_data.reason()? != Reason::UselessPeer {
+        return Err(HandshakeError::RecipientHelloP2pProtocolMismatch);
+    }
+
+    // Verify that the peer has disconnected.
+    let recipient_disconnect_bytes = read_bytes(&mut stream)?;
+    if recipient_disconnect_bytes.len() != 0 {
+        return Err(HandshakeError::RecipientDidNotDisconnect);
+    }
+
+    // TODO Also disconnect the initiator.
+    // The specification at https://github.com/ethereum/devp2p/blob/master/rlpx.md says
+    // that the initiator has 2 seconds to comply and send a Disconnect message to the
+    // recipient.
 
     Ok(secrets)
 }
