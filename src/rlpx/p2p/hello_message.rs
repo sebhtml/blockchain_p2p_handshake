@@ -1,13 +1,8 @@
-use std::vec;
-
 use crate::rlpx::{handshake_error::HandshakeError, IntoRlpList};
 use alloy_rlp::{Decodable, Encodable};
 use rlp::Rlp;
 
-pub struct Message {
-    pub msg_id: u64,
-    pub msg_data: Vec<u8>,
-}
+use super::frame::Message;
 
 #[derive(Debug, PartialEq, alloy_rlp::RlpDecodable, alloy_rlp::RlpEncodable)]
 pub struct Capability {
@@ -73,7 +68,7 @@ impl HelloMessageData {
 
         //let rlp = Rlp::new(&list);
         //let list = &list[rlp.payload_info().unwrap().total()..];
-        let capabilities = Vec::<u8>::decode(&mut buffer).unwrap();
+        let _capabilities = Vec::<u8>::decode(&mut buffer).unwrap();
         let capabilities: Vec<Capability> = {
             //let rlp = it.next().unwrap();
             /*
@@ -222,39 +217,5 @@ mod tests {
         let mut rlp_bytes = rlp_bytes.as_slice();
         let decoded_hello_msg_data = HelloMessageData::decode(&mut rlp_bytes).unwrap();
         assert_eq!(decoded_hello_msg_data, hello_msg_data);
-    }
-
-    #[test]
-    fn rlp_apple_5() {
-        #[derive(Debug, PartialEq)]
-        struct Apple5 {
-            apple: String,
-            five: u32,
-        }
-        let apple5 = Apple5 {
-            apple: "apple".into(),
-            five: 5,
-        };
-
-        // Encode
-        let rlp_bytes =
-            rlp::encode_list(&vec![rlp::encode(&apple5.apple), rlp::encode(&apple5.five)].concat());
-
-        // Decode
-        let list_rlp = Rlp::new(&rlp_bytes);
-        assert_eq!(true, list_rlp.is_list());
-        let list = list_rlp.as_list().unwrap();
-
-        let apple_rlp = Rlp::new(&list);
-        let list = &list[apple_rlp.payload_info().unwrap().total()..];
-
-        let five_rlp = Rlp::new(list);
-
-        let decoded_apple5 = Apple5 {
-            apple: apple_rlp.as_val().unwrap(),
-            five: five_rlp.as_val().unwrap(),
-        };
-
-        assert_eq!(apple5, decoded_apple5);
     }
 }

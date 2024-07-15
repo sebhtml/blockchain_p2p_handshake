@@ -1,13 +1,8 @@
-use crate::rlpx::p2p::frame::write_frame;
-use crate::rlpx::{
-    ecies_handshake::{
-        ack_message::AckMessage, ecies::ecies_decrypt, nonce::make_nonce, secrets::Secrets,
-    },
-    p2p::{
-        frame::read_frame,
-        message::{Hello, Message, HELLO_MSG_ID},
-    },
+use crate::rlpx::ecies_handshake::{
+    ack_message::AckMessage, ecies::ecies_decrypt, nonce::make_nonce, secrets::Secrets,
 };
+use crate::rlpx::p2p::frame::{read_frame, write_frame, Message};
+use crate::rlpx::p2p::hello_message::{Hello, HELLO_MSG_ID};
 use crate::rlpx::{
     ecies_handshake::{
         auth_message::{prepare_auth_packet, AuthMessage},
@@ -138,6 +133,7 @@ pub fn do_rlpx_handshake_as_initiator(
     ingress_mac.update(&ack);
 
     // Send Hello to recipient
+    // TODO don't put hello method in Message namespace.
     let hello = Message::hello(
         &initiator_static_pk.serialize_uncompressed()[1..]
             .try_into()
@@ -166,6 +162,7 @@ pub fn do_rlpx_handshake_as_initiator(
     if recipient_hello.msg_id != HELLO_MSG_ID {
         return Err(HandshakeError::BadRecipientHelloMsgId);
     }
+
     let recipient_hello_data = recipient_hello.to_hello_msg_data()?;
     println!("recipient_hello_data {:?}", recipient_hello_data);
 
@@ -177,6 +174,9 @@ pub fn do_rlpx_handshake_as_initiator(
     // Verify that the recipient has not disconnected from the TCP/IP connection.
     // If the recipient disconnected, it means that its igress MAC check.
     // If the recipient is not disconnected, doing a read with timeout should time out.
+
+    // TODO Implement Disconnect since the recipient node is probably going to disconnect since we don't implement the
+    // eth capability.
     stream
         .set_read_timeout(Some(Duration::from_secs(1)))
         .map_err(|err| HandshakeError::IOError(err.to_string()))?;

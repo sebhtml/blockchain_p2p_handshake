@@ -7,11 +7,15 @@ use rlp::RlpStream;
 
 use crate::rlpx::handshake_error::HandshakeError;
 
-use super::{mac::MacState, message::Message};
+use super::mac::MacState;
 
 pub struct FrameCipherTexts {
     pub header_ciphertext: [u8; 16],
     pub frame_ciphertext: Vec<u8>,
+}
+pub struct Message {
+    pub msg_id: u64,
+    pub msg_data: Vec<u8>,
 }
 
 /// Generate a frame.
