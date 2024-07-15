@@ -117,6 +117,21 @@ impl EthereumNode {
         ingress_mac.update(&ack);
         let mut ingress_cipher = Ctr64BE::<Aes256>::new(aes_secret.into(), iv.into());
 
+        // Send Hello to recipient
+        let egress_frame: Frame = HelloMessageData::new(
+            &self.static_pk.serialize_uncompressed()[1..]
+                .try_into()
+                .unwrap(),
+        )
+        .into();
+        let egress_frame_bytes = egress_frame.write_frame(&mut egress_cipher, &mut egress_mac)?;
+
+        let bytes_written = peer.write_bytes(&egress_frame_bytes)?;
+        println!("wrote Hello with len {}", bytes_written);
+        if bytes_written != egress_frame_bytes.len() {
+            return Err(HandshakeError::IOError("bad bytes_written".into()));
+        }
+
         // Receive hello from recipient
         let ingress_frame_bytes = peer.read_bytes()?;
 
@@ -134,21 +149,6 @@ impl EthereumNode {
         // Check protocol version
         if ingress_msg_data.protocol_version != 5 {
             return Err(HandshakeError::RecipientHelloP2pProtocolMismatch);
-        }
-
-        // Send Hello to recipient
-        let egress_frame: Frame = HelloMessageData::new(
-            &self.static_pk.serialize_uncompressed()[1..]
-                .try_into()
-                .unwrap(),
-        )
-        .into();
-        let egress_frame_bytes = egress_frame.write_frame(&mut egress_cipher, &mut egress_mac)?;
-
-        let bytes_written = peer.write_bytes(&egress_frame_bytes)?;
-        println!("wrote Hello with len {}", bytes_written);
-        if bytes_written != egress_frame_bytes.len() {
-            return Err(HandshakeError::IOError("bad bytes_written".into()));
         }
 
         // Receive Disconnect from recipient.
