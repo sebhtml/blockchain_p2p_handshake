@@ -15,6 +15,7 @@ use crate::rlpx::{
 
 use aes::cipher::KeyIvInit;
 use aes::Aes256;
+use alloy_rlp::Decodable;
 use ctr::Ctr64BE;
 use secp256k1::{generate_keypair, PublicKey, SecretKey};
 
@@ -83,9 +84,13 @@ impl EthereumNode {
 
         // Convert arc-body to AckMessage.
         // TODO remove from_rlp_list.
-        let ack_message = AckMessage::from_rlp_list(&ack_body)?;
-        let remote_ephemeral_pk =
-            PublicKey::from_slice(&ack_message.recipient_ephemeral_pubk).unwrap();
+        let ack_message = AckMessage::decode(&mut ack_body.as_slice()).unwrap();
+        let recipient_ephemeral_pubk = vec![
+            [4].as_slice(),
+            ack_message.recipient_ephemeral_pubk.as_slice(),
+        ]
+        .concat();
+        let remote_ephemeral_pk = PublicKey::from_slice(&recipient_ephemeral_pubk).unwrap();
 
         let recipient_nonce = &ack_message.recipient_nonce;
 

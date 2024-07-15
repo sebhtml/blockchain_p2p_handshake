@@ -16,7 +16,6 @@ pub const NONCE_LENGTH: usize = 32;
 #[derive(Debug, PartialEq, RlpEncodable, RlpDecodable)]
 pub struct AuthMessage {
     pub sig: [u8; 65],
-    // TODO use 65 for pubk
     pub initiator_pubk: [u8; 64],
     pub initiator_nonce: [u8; 32],
     pub auth_vsn: u32,
