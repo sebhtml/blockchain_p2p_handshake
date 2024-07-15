@@ -32,24 +32,17 @@ impl EthereumNode {
         }
     }
 
-    /// Use the 'p2p' capability to add a peer.
-    /// See RLPx : https://github.com/ethereum/devp2p/blob/master/rlpx.md
-    pub fn add_peer(&self, recipient_enode: &ENode) -> Result<bool, HandshakeError> {
-        let mut peer = Peer::new(recipient_enode)?;
-
-        let mut rng = secp256k1::rand::thread_rng();
-
-        let initiator_nonce = make_nonce();
-
-        // TODO it is weird that we don't need initiator_ephemeral_pk.
-        let (initiator_ephemeral_sk, _initiator_ephemeral_pk) = generate_keypair(&mut rng);
-
-        // Generate auth packet.
+    fn send_auth(
+        &self,
+        initiator_nonce: &[u8; 32],
+        initiator_ephemeral_sk: &SecretKey,
+        peer: &mut Peer,
+    ) -> Result<Vec<u8>, HandshakeError> {
         let auth_message = AuthMessage::try_new(
             &initiator_nonce,
             &self.static_sk,
             &self.static_pk,
-            &initiator_ephemeral_sk,
+            initiator_ephemeral_sk,
             peer.static_pk(),
         )?;
         let auth = prepare_auth_packet(
@@ -64,8 +57,25 @@ impl EthereumNode {
         if bytes_written != auth.len() {
             return Err(HandshakeError::IOError("bad bytes_written".into()));
         }
+        Ok(auth)
+    }
 
-        // Read Ack packet.
+    /// Use the 'p2p' capability to add a peer.
+    /// See RLPx : https://github.com/ethereum/devp2p/blob/master/rlpx.md
+    pub fn add_peer(&self, recipient_enode: &ENode) -> Result<bool, HandshakeError> {
+        let mut peer = Peer::new(recipient_enode)?;
+
+        let mut rng = secp256k1::rand::thread_rng();
+
+        let initiator_nonce = make_nonce();
+
+        // TODO it is weird that we don't need initiator_ephemeral_pk.
+        let (initiator_ephemeral_sk, _initiator_ephemeral_pk) = generate_keypair(&mut rng);
+
+        // Send Auth
+        let auth = self.send_auth(&initiator_nonce, &initiator_ephemeral_sk, &mut peer)?;
+
+        // Read Ack
         let ack = peer.read_bytes()?;
 
         if ack.len() == 0 {
