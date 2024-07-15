@@ -16,24 +16,30 @@ struct EciesKeys {
     k_m: [u8; 32],
 }
 
-pub fn ecdh_agree(sk: &SecretKey, pk: &PublicKey) -> [u8; 32] {
+pub fn ecdh_agree(sk: &SecretKey, pk: &PublicKey) -> Result<[u8; 32], HandshakeError> {
     shared_secret_point(&pk, &sk)[..32]
         .to_vec()
         .try_into()
-        .unwrap()
+        .map_err(|_| HandshakeError::CryptoKeyError)
 }
 
 fn ecies_generate_key_material(
     pk: &PublicKey,
     sk: &SecretKey,
 ) -> Result<EciesKeys, HandshakeError> {
-    let shared_secret = ecdh_agree(sk, pk);
+    let shared_secret = ecdh_agree(sk, pk)?;
 
-    // TODO remove unwrap calls.
-    let shared_secret_derived_key = kdf(&shared_secret);
-    let k_e: [u8; 16] = shared_secret_derived_key[0..16].try_into().unwrap();
-    let k_m: [u8; 16] = shared_secret_derived_key[16..32].try_into().unwrap();
-    let mac_key: [u8; 32] = Sha256::digest(&k_m).to_vec().try_into().unwrap();
+    let shared_secret_derived_key = kdf(&shared_secret)?;
+    let k_e: [u8; 16] = shared_secret_derived_key[0..16]
+        .try_into()
+        .map_err(|_| HandshakeError::CryptoKeyError)?;
+    let k_m: [u8; 16] = shared_secret_derived_key[16..32]
+        .try_into()
+        .map_err(|_| HandshakeError::CryptoKeyError)?;
+    let mac_key: [u8; 32] = Sha256::digest(&k_m)
+        .to_vec()
+        .try_into()
+        .map_err(|_| HandshakeError::CryptoKeyError)?;
 
     let keys = EciesKeys { k_e, k_m: mac_key };
     Ok(keys)
@@ -41,11 +47,11 @@ fn ecies_generate_key_material(
 
 /// KDF(k, len): the NIST SP 800-56 Concatenation Key Derivation Function
 /// See https://github.com/ethereum/devp2p/blob/master/rlpx.md
-fn kdf(shared_secret: &[u8; 32]) -> [u8; 32] {
+fn kdf(shared_secret: &[u8; 32]) -> Result<[u8; 32], HandshakeError> {
     let mut shared_secret_derived_key = [0_u8; 32];
     concat_kdf::derive_key_into::<Sha256>(shared_secret, &[], &mut shared_secret_derived_key)
-        .unwrap();
-    shared_secret_derived_key
+        .map_err(|_| HandshakeError::CryptoKeyError)?;
+    Ok(shared_secret_derived_key)
 }
 
 /// MAC(k, m): HMAC using the SHA-256 hash function.

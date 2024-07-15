@@ -4,7 +4,6 @@ use crate::rlpx::handshake_error::HandshakeError;
 
 use super::frame::Frame;
 
-// TODO use enum for msg id
 pub const DISCONNECT_MSG_ID: u64 = 0x01;
 
 #[derive(Clone, PartialEq)]

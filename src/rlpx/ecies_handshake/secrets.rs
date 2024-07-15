@@ -1,6 +1,8 @@
 use secp256k1::{PublicKey, SecretKey};
 use sha3::{Digest, Keccak256};
 
+use crate::rlpx::handshake_error::HandshakeError;
+
 use super::ecies::ecdh_agree;
 
 #[derive(Debug)]
@@ -21,9 +23,9 @@ impl Secrets {
         remote_ephemeral_pk: &PublicKey,
         nonce: &[u8; 32],
         initiator_nonce: &[u8; 32],
-    ) -> Self {
-        let static_shared_secret = ecdh_agree(static_sk, remote_static_pk);
-        let ephemeral_key = ecdh_agree(ephemeral_sk, remote_ephemeral_pk);
+    ) -> Result<Self, HandshakeError> {
+        let static_shared_secret = ecdh_agree(static_sk, remote_static_pk)?;
+        let ephemeral_key = ecdh_agree(ephemeral_sk, remote_ephemeral_pk)?;
 
         //Hash the nonces
         let nonces_hash = {
@@ -57,11 +59,23 @@ impl Secrets {
             hasher.finalize().to_vec()
         };
 
-        Self {
-            static_shared_secret: static_shared_secret.try_into().unwrap(),
-            ephemeral_key: ephemeral_key.try_into().unwrap(),
-            aes_secret: aes_secret.to_vec().try_into().unwrap(),
-            mac_secret: mac_secret.to_vec().try_into().unwrap(),
-        }
+        let secrets = Self {
+            static_shared_secret: static_shared_secret
+                .try_into()
+                .map_err(|_| HandshakeError::CryptoKeyError)?,
+            ephemeral_key: ephemeral_key
+                .try_into()
+                .map_err(|_| HandshakeError::CryptoKeyError)?,
+            aes_secret: aes_secret
+                .to_vec()
+                .try_into()
+                .map_err(|_| HandshakeError::CryptoKeyError)?,
+            mac_secret: mac_secret
+                .to_vec()
+                .try_into()
+                .map_err(|_| HandshakeError::CryptoKeyError)?,
+        };
+
+        Ok(secrets)
     }
 }

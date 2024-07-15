@@ -103,7 +103,7 @@ impl Connection {
 
         let initiator_nonce = make_nonce();
 
-        // It is weird that we don't need initiator_ephemeral_pk in ECIES.
+        // TODO It is weird that we don't need initiator_ephemeral_pk in ECIES.
         let (initiator_ephemeral_sk, _initiator_ephemeral_pk) = generate_keypair(&mut rng);
 
         // Send Auth
@@ -269,7 +269,7 @@ impl Connection {
             remote_ephemeral_pk,
             recipient_nonce,
             initiator_nonce,
-        );
+        )?;
 
         // key and iv for egress and ingress
         let aes_secret = secrets.aes_secret.as_slice();
