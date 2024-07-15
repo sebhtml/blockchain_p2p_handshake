@@ -133,12 +133,12 @@ pub fn do_rlpx_handshake_as_initiator(
     let mut egress_mac = MacState::new(&secrets.mac_secret);
     egress_mac.update(&xor(&secrets.mac_secret, recipient_nonce));
     egress_mac.update(&auth);
+    let mut egress_cipher = Ctr64BE::<Aes256>::new(aes_secret.into(), iv.into());
 
     // Ingress MAC and cipher
     let mut ingress_mac = MacState::new(&secrets.mac_secret);
     ingress_mac.update(&xor(&secrets.mac_secret, &initiator_nonce));
     ingress_mac.update(&ack);
-
     let mut ingress_cipher = Ctr64BE::<Aes256>::new(aes_secret.into(), iv.into());
 
     // Send Hello to recipient
@@ -148,7 +148,7 @@ pub fn do_rlpx_handshake_as_initiator(
             .try_into()
             .unwrap(),
     );
-    let hello_bytes = hello.write_frame(&secrets.aes_secret, &mut egress_mac)?;
+    let hello_bytes = hello.write_frame(&mut egress_cipher, &mut egress_mac)?;
 
     // Send hello to recipient
     let bytes_written = write_bytes(&mut stream, &hello_bytes)?;

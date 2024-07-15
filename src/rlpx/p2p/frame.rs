@@ -1,8 +1,4 @@
-use aes::{
-    cipher::{KeyIvInit, StreamCipher},
-    Aes256,
-};
-use ctr::Ctr64BE;
+use aes::cipher::StreamCipher;
 use rlp::RlpStream;
 
 use crate::rlpx::handshake_error::HandshakeError;
@@ -23,15 +19,10 @@ impl Frame {
     /// See section "Framing" on the web page https://github.com/ethereum/devp2p/blob/master/rlpx.md
     pub fn generate_frame_cipher_texts(
         &self,
-        aes_secret: &[u8; 32],
+        cipher: &mut impl StreamCipher,
     ) -> Result<FrameCipherTexts, HandshakeError> {
         let msg_id = self.msg_id;
         let msg_data = self.msg_data.as_slice();
-
-        // Cipher
-        let iv = [0 as u8; 16].as_slice();
-        let aes_secret = aes_secret.as_slice();
-        let mut cipher = Ctr64BE::<Aes256>::new(aes_secret.into(), iv.into());
 
         // frame-data = msg-id || msg-data
         let msg_id = rlp::encode(&msg_id);
@@ -96,10 +87,10 @@ impl Frame {
 
     pub fn write_frame(
         &self,
-        aes_secret: &[u8; 32],
+        cipher: &mut impl StreamCipher,
         egress_mac: &mut MacState,
     ) -> Result<Vec<u8>, HandshakeError> {
-        let cipher_texts = self.generate_frame_cipher_texts(aes_secret)?;
+        let cipher_texts = self.generate_frame_cipher_texts(cipher)?;
         let header_ciphertext = &cipher_texts.header_ciphertext;
         let frame_ciphertext = &cipher_texts.frame_ciphertext;
 
