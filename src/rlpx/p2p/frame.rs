@@ -13,13 +13,11 @@ pub struct Frame {
     pub msg_data: Vec<u8>,
 }
 
-#[derive(RlpEncodable, RlpDecodable)]
-#[derive(Default)]
+#[derive(RlpEncodable, RlpDecodable, Default)]
 pub struct HeaderData {
     capability_id: u32,
     context_id: u32,
 }
-
 
 impl Frame {
     /// Generate a frame.
@@ -102,10 +100,12 @@ impl Frame {
         let frame_mac = &mac_tags.frame_mac;
 
         // frame = header-ciphertext || header-mac || frame-ciphertext || frame-mac
-        let frame = [header_ciphertext.as_slice(),
+        let frame = [
+            header_ciphertext.as_slice(),
             header_mac,
             frame_ciphertext,
-            frame_mac]
+            frame_mac,
+        ]
         .concat();
 
         Ok(frame)

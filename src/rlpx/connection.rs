@@ -129,8 +129,10 @@ impl Connection {
         // Convert arc-body to AckMessage.
         let ack_message = AckMessage::decode(&mut ack_body.as_slice())
             .map_err(|_| HandshakeError::RlpDecodeError)?;
-        let recipient_ephemeral_pubk = [[4].as_slice(),
-            ack_message.recipient_ephemeral_pubk.as_slice()]
+        let recipient_ephemeral_pubk = [
+            [4].as_slice(),
+            ack_message.recipient_ephemeral_pubk.as_slice(),
+        ]
         .concat();
         let remote_ephemeral_pubk = PublicKey::from_slice(&recipient_ephemeral_pubk)
             .map_err(|_| HandshakeError::CryptoKeyError)?;

@@ -68,8 +68,7 @@ fn generate_hmac_tag(
     hmac.update(encrypted_message);
     hmac.update(auth_data);
     let tag = hmac.finalize().into_bytes().to_vec();
-    tag
-        .try_into()
+    tag.try_into()
         .map_err(|_| HandshakeError::MacGenerationError)
 }
 
@@ -103,10 +102,12 @@ pub fn ecies_encrypt(
 
     let tag = generate_hmac_tag(&keys.k_m, &iv, &encrypted_message, auth_data)?;
 
-    Ok([initiator_static_pubk.serialize_uncompressed().to_vec(),
+    Ok([
+        initiator_static_pubk.serialize_uncompressed().to_vec(),
         iv.to_vec(),
         encrypted_message,
-        tag.to_vec()]
+        tag.to_vec(),
+    ]
     .concat())
 }
 
