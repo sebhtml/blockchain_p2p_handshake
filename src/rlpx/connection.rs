@@ -157,7 +157,7 @@ impl Connection {
         let ingress_cipher = &mut macs_and_ciphers.ingress.cipher;
 
         // Send Hello to recipient
-        // In https://github.com/ethereum/devp2p/blob/master/rlpx.md#hello-0x00 ,
+        // TODO In https://github.com/ethereum/devp2p/blob/master/rlpx.md#hello-0x00 ,
         // it says that node_id is the node's public key.
         // However, that does not work so we send the initiator ephemeral pub key instead.
         let binding = initiator_ephemeral_pubk.serialize_uncompressed();
