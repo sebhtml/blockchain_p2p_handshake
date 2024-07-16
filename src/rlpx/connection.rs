@@ -97,7 +97,7 @@ impl Connection {
     pub fn handshake(
         &mut self,
         initiator_static_seck: &SecretKey,
-        _initiator_static_pubk: &PublicKey,
+        #[allow(unused)] initiator_static_pubk: &PublicKey,
     ) -> Result<bool, HandshakeError> {
         let mut rng = secp256k1::rand::thread_rng();
 
@@ -157,13 +157,14 @@ impl Connection {
         let ingress_cipher = &mut macs_and_ciphers.ingress.cipher;
 
         // Send Hello to recipient
-        let egress_frame: Frame = HelloMessageData::new(
-            // TODO send static pk in node_id here
-            initiator_ephemeral_pubk.serialize_uncompressed()[1..]
-                .try_into()
-                .map_err(|_| HandshakeError::CryptoKeyError)?,
-        )
-        .into();
+        // In https://github.com/ethereum/devp2p/blob/master/rlpx.md#hello-0x00 ,
+        // it says that node_id is the node's public key.
+        // However, that does not work so we send the initiator ephemeral pub key instead.
+        let binding = initiator_ephemeral_pubk.serialize_uncompressed();
+        let node_id = binding[1..]
+            .try_into()
+            .map_err(|_| HandshakeError::CryptoKeyError)?;
+        let egress_frame: Frame = HelloMessageData::new(node_id).into();
 
         let egress_frame_bytes = egress_frame.write_frame(egress_cipher, egress_mac)?;
 
