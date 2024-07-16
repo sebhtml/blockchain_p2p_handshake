@@ -60,12 +60,8 @@ impl Secrets {
         };
 
         let secrets = Self {
-            static_shared_secret: static_shared_secret
-                .try_into()
-                .map_err(|_| HandshakeError::CryptoKeyError)?,
-            ephemeral_key: ephemeral_key
-                .try_into()
-                .map_err(|_| HandshakeError::CryptoKeyError)?,
+            static_shared_secret,
+            ephemeral_key,
             aes_secret: aes_secret
                 .to_vec()
                 .try_into()

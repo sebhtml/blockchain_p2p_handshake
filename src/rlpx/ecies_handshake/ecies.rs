@@ -128,7 +128,7 @@ pub fn ecies_decrypt(
 
     let tag = generate_hmac_tag(mac_key, iv, encrypted_message, auth_data)?;
 
-    if &tag != msg_hmac_tag {
+    if tag != msg_hmac_tag {
         return Err(HandshakeError::MacValidationFailure);
     }
 
