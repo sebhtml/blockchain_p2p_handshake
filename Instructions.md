@@ -1,24 +1,20 @@
 # Instructions
 
-## Part 1: start the target node
+Tested on Debian GNU/Linux 12 (bookworm) with bash.
 
 1. Start a Ethereum node using Docker:
 ```bash
-docker run -d --name ethereum-node -v /Users/alice/ethereum:/root \
+docker run -d --name ethereum-node -v $HOME/Users/alice/ethereum:/root \
     -p 30303:30303 \
-    ethereum/client-go
+    ethereum/client-go:v1.14.7
 ```
-2. Run `docker ps` to get the identifier of the Docker container.
-3. Run `docker logs <identifier>`.
-4. In the output, locate the line with enode:// This is the Ethereum node ID.
-
-## Part 2: do the handshake
-
-1. Install Rust using "rustup" (see https://www.rust-lang.org/tools/install )
-2. Untar blockchain_p2p_handshake.tar.gz
-3. Go to blockchain_p2p_handshake
-4. Type (you need to change the enode to use the id from step 4 in part 1.)
+2. Run `docker logs <container-id>`. (The container ID is the last line in the terminal.)
+3. In the output, locate the line with enode:// This is the Ethereum node ID.
+4. Install Rust using "rustup" (see https://www.rust-lang.org/tools/install )
+5. Untar blockchain_p2p_handshake.tar.gz
+6. Go to blockchain_p2p_handshake
+7. Run the RLPx p2p client (you need to change the enode to use the id from step 3)
 ```bash
-RUST_LOG=info cargo run --release -- --recipient \
-  enode://edd46ce2368c4fecd13749968699bbaaec190acaf296616354b4d9284a78be17a2b9a0be2c5ca1d55ca3d22588d59efe680505aeb36c10776ecccbb38395ee3b@127.0.0.1:30303
+RECIPIENT="enode://2d02bb84cbe2bbc45867b497a4a70892f3656ca796303d53839293c8a90b279b3356e10de96483ea49072df54ba6e66c9fd38fef76ca4364b36ae366ba385eaa@127.0.0.1:30303"
+RUST_LOG=info cargo run --release -- --recipient $RECIPIENT
 ```
