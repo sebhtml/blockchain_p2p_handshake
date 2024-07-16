@@ -142,7 +142,7 @@ impl Connection {
         let recipient_nonce = &ack_message.recipient_nonce;
 
         // The Auth and Ack things are done.
-        let mut macs_and_ciphers = Self::setup_cryptographic_connection(
+        let mut macs_and_ciphers = setup_cryptographic_connection(
             &auth,
             &ack,
             &initiator_ephemeral_sk,
@@ -261,54 +261,54 @@ impl Connection {
 
         Ok(auth)
     }
+}
 
-    fn setup_cryptographic_connection(
-        auth: &[u8],
-        ack: &[u8],
-        initiator_static_sk: &SecretKey,
-        recipient_static_pk: &PublicKey,
-        initiator_ephemeral_sk: &SecretKey,
-        remote_ephemeral_pk: &PublicKey,
-        recipient_nonce: &[u8; 32],
-        initiator_nonce: &[u8; 32],
-    ) -> Result<MacsAndCiphers, HandshakeError> {
-        // Generate session secrets.
-        let secrets = Secrets::new(
-            initiator_static_sk,
-            recipient_static_pk,
-            &initiator_ephemeral_sk,
-            remote_ephemeral_pk,
-            recipient_nonce,
-            initiator_nonce,
-        )?;
+fn setup_cryptographic_connection(
+    auth: &[u8],
+    ack: &[u8],
+    initiator_static_sk: &SecretKey,
+    recipient_static_pk: &PublicKey,
+    initiator_ephemeral_sk: &SecretKey,
+    remote_ephemeral_pk: &PublicKey,
+    recipient_nonce: &[u8; 32],
+    initiator_nonce: &[u8; 32],
+) -> Result<MacsAndCiphers, HandshakeError> {
+    // Generate session secrets.
+    let secrets = Secrets::new(
+        initiator_static_sk,
+        recipient_static_pk,
+        &initiator_ephemeral_sk,
+        remote_ephemeral_pk,
+        recipient_nonce,
+        initiator_nonce,
+    )?;
 
-        // key and iv for egress and ingress
-        let aes_secret = secrets.aes_secret.as_slice();
-        let iv = [0 as u8; 16].as_slice();
+    // key and iv for egress and ingress
+    let aes_secret = secrets.aes_secret.as_slice();
+    let iv = [0 as u8; 16].as_slice();
 
-        // Initiate egress
-        let mut egress_mac = MacState::new(&secrets.mac_secret)?;
-        egress_mac.update(&xor(&secrets.mac_secret, recipient_nonce));
-        egress_mac.update(&auth);
-        let egress_cipher = Ctr64BE::<Aes256>::new(aes_secret.into(), iv.into());
+    // Initiate egress
+    let mut egress_mac = MacState::new(&secrets.mac_secret)?;
+    egress_mac.update(&xor(&secrets.mac_secret, recipient_nonce));
+    egress_mac.update(&auth);
+    let egress_cipher = Ctr64BE::<Aes256>::new(aes_secret.into(), iv.into());
 
-        // Ingress MAC and cipher
-        let mut ingress_mac = MacState::new(&secrets.mac_secret)?;
-        ingress_mac.update(&xor(&secrets.mac_secret, initiator_nonce));
-        ingress_mac.update(&ack);
-        let ingress_cipher = Ctr64BE::<Aes256>::new(aes_secret.into(), iv.into());
+    // Ingress MAC and cipher
+    let mut ingress_mac = MacState::new(&secrets.mac_secret)?;
+    ingress_mac.update(&xor(&secrets.mac_secret, initiator_nonce));
+    ingress_mac.update(&ack);
+    let ingress_cipher = Ctr64BE::<Aes256>::new(aes_secret.into(), iv.into());
 
-        let macs_and_ciphers = MacsAndCiphers {
-            egress: MacAndCipher {
-                mac: egress_mac,
-                cipher: egress_cipher,
-            },
-            ingress: MacAndCipher {
-                mac: ingress_mac,
-                cipher: ingress_cipher,
-            },
-        };
+    let macs_and_ciphers = MacsAndCiphers {
+        egress: MacAndCipher {
+            mac: egress_mac,
+            cipher: egress_cipher,
+        },
+        ingress: MacAndCipher {
+            mac: ingress_mac,
+            cipher: ingress_cipher,
+        },
+    };
 
-        Ok(macs_and_ciphers)
-    }
+    Ok(macs_and_ciphers)
 }
