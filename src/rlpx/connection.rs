@@ -96,8 +96,8 @@ impl Connection {
     /// See RLPx : https://github.com/ethereum/devp2p/blob/master/rlpx.md
     pub fn handshake(
         &mut self,
-        __initiator_static_seck: &SecretKey,
-        __initiator_static_pubk: &PublicKey,
+        initiator_static_seck: &SecretKey,
+        _initiator_static_pubk: &PublicKey,
     ) -> Result<bool, HandshakeError> {
         let mut rng = secp256k1::rand::thread_rng();
 
@@ -143,7 +143,7 @@ impl Connection {
         let mut macs_and_ciphers = setup_cryptographic_connection(
             &auth,
             &ack,
-            &initiator_ephemeral_seck,
+            initiator_static_seck,
             &self.recipient_static_pubk,
             &initiator_ephemeral_seck,
             &remote_ephemeral_pubk,
@@ -236,19 +236,19 @@ impl Connection {
 
     fn send_auth(
         &mut self,
-        initiator_static_pubk: &PublicKey,
+        initiator_ephemeral_pubk: &PublicKey,
         initiator_nonce: &[u8; 32],
         initiator_ephemeral_seck: &SecretKey,
     ) -> Result<Vec<u8>, HandshakeError> {
         let auth_message = AuthMessage::try_new(
             &initiator_nonce,
-            initiator_static_pubk,
+            initiator_ephemeral_pubk,
             initiator_ephemeral_seck,
             &self.recipient_static_pubk,
         )?;
         let auth = prepare_auth_packet(
             initiator_ephemeral_seck,
-            initiator_static_pubk,
+            initiator_ephemeral_pubk,
             &self.recipient_static_pubk,
             &auth_message,
         )?;
@@ -265,7 +265,7 @@ fn setup_cryptographic_connection(
     initiator_static_seck: &SecretKey,
     recipient_static_pubk: &PublicKey,
     initiator_ephemeral_seck: &SecretKey,
-    remote_ephemeral_pubk: &PublicKey,
+    recipient_ephemeral_pubk: &PublicKey,
     recipient_nonce: &[u8; 32],
     initiator_nonce: &[u8; 32],
 ) -> Result<MacsAndCiphers, HandshakeError> {
@@ -274,7 +274,7 @@ fn setup_cryptographic_connection(
         initiator_static_seck,
         recipient_static_pubk,
         &initiator_ephemeral_seck,
-        remote_ephemeral_pubk,
+        recipient_ephemeral_pubk,
         recipient_nonce,
         initiator_nonce,
     )?;
