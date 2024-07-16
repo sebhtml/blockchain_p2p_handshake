@@ -49,14 +49,14 @@ impl HelloMessageData {
     }
 }
 
-impl Into<Frame> for &HelloMessageData {
-    fn into(self) -> Frame {
+impl From<&HelloMessageData> for Frame {
+    fn from(val: &HelloMessageData) -> Self {
         let mut message_data = vec![];
-        self.encode(&mut message_data);
+        val.encode(&mut message_data);
 
         Frame {
             msg_id: HELLO_MSG_ID,
-            msg_data: message_data.into(),
+            msg_data: message_data,
         }
     }
 }

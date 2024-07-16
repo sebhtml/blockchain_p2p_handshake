@@ -59,7 +59,7 @@ impl MacState {
     ) -> Result<[u8; 16], HandshakeError> {
         let mac = self.mac()?;
 
-        let mut aes_mac = mac.clone();
+        let mut aes_mac = mac;
         let msg_len = aes_mac.len();
 
         self.cipher
@@ -80,7 +80,7 @@ impl MacState {
 
         let mac = self.mac()?;
 
-        let mut aes_mac = mac.clone();
+        let mut aes_mac = mac;
         let msg_len = aes_mac.len();
 
         self.cipher

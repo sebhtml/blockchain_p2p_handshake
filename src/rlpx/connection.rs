@@ -44,9 +44,9 @@ struct MacAndCipher {
 }
 
 fn get_socket(ip_address: &str, port: u16) -> Result<SocketAddr, HandshakeError> {
-    let addr = if let Ok(addr) = Ipv4Addr::from_str(&ip_address) {
+    let addr = if let Ok(addr) = Ipv4Addr::from_str(ip_address) {
         Ok(IpAddr::V4(addr))
-    } else if let Ok(addr) = Ipv6Addr::from_str(&ip_address) {
+    } else if let Ok(addr) = Ipv6Addr::from_str(ip_address) {
         Ok(IpAddr::V6(addr))
     } else {
         Err(HandshakeError::BadRecipientNodeAddress)
@@ -75,7 +75,7 @@ impl Connection {
     pub fn write_bytes(&mut self, packet: &[u8]) -> Result<usize, HandshakeError> {
         let bytes_written = self
             .stream
-            .write(&packet)
+            .write(packet)
             .map_err(|err| HandshakeError::IOError(err.to_string()))?;
         if bytes_written != packet.len() {
             return Err(HandshakeError::IOError("bad bytes_written".into()));
@@ -116,23 +116,21 @@ impl Connection {
         // Read Ack
         let ack = self.read_bytes()?;
 
-        if ack.len() == 0 {
+        if ack.is_empty() {
             return Err(HandshakeError::RecipientDisconnected);
         }
 
         // ack = ack-size || enc-ack-body
         // ack-size = size of enc-ack-body, encoded as a big-endian 16-bit integer
         let (ack_size, enc_ack_body) = ack.split_at(2);
-        let ack_body = ecies_decrypt(&initiator_ephemeral_seck, &enc_ack_body, &ack_size)?;
+        let ack_body = ecies_decrypt(&initiator_ephemeral_seck, enc_ack_body, ack_size)?;
         info!("Initiator read Ack from Recipient with len {}", ack.len());
 
         // Convert arc-body to AckMessage.
         let ack_message = AckMessage::decode(&mut ack_body.as_slice())
             .map_err(|_| HandshakeError::RlpDecodeError)?;
-        let recipient_ephemeral_pubk = vec![
-            [4].as_slice(),
-            ack_message.recipient_ephemeral_pubk.as_slice(),
-        ]
+        let recipient_ephemeral_pubk = [[4].as_slice(),
+            ack_message.recipient_ephemeral_pubk.as_slice()]
         .concat();
         let remote_ephemeral_pubk = PublicKey::from_slice(&recipient_ephemeral_pubk)
             .map_err(|_| HandshakeError::CryptoKeyError)?;
@@ -225,7 +223,7 @@ impl Connection {
         );
         // Verify that the peer has disconnected.
         let recipient_disconnect_bytes = self.read_bytes()?;
-        if recipient_disconnect_bytes.len() != 0 {
+        if !recipient_disconnect_bytes.is_empty() {
             return Err(HandshakeError::RecipientDidNotDisconnect);
         }
 
@@ -241,7 +239,7 @@ impl Connection {
         initiator_ephemeral_seck: &SecretKey,
     ) -> Result<Vec<u8>, HandshakeError> {
         let auth_message = AuthMessage::try_new(
-            &initiator_nonce,
+            initiator_nonce,
             initiator_ephemeral_pubk,
             initiator_ephemeral_seck,
             &self.recipient_static_pubk,
@@ -273,7 +271,7 @@ fn setup_cryptographic_connection(
     let secrets = Secrets::new(
         initiator_static_seck,
         recipient_static_pubk,
-        &initiator_ephemeral_seck,
+        initiator_ephemeral_seck,
         recipient_ephemeral_pubk,
         recipient_nonce,
         initiator_nonce,
@@ -281,18 +279,18 @@ fn setup_cryptographic_connection(
 
     // key and iv for egress and ingress
     let aes_secret = secrets.aes_secret.as_slice();
-    let iv = [0 as u8; 16].as_slice();
+    let iv = [0_u8; 16].as_slice();
 
     // Initiate egress
     let mut egress_mac = MacState::new(&secrets.mac_secret)?;
     egress_mac.update(&xor(&secrets.mac_secret, recipient_nonce));
-    egress_mac.update(&auth);
+    egress_mac.update(auth);
     let egress_cipher = Ctr64BE::<Aes256>::new(aes_secret.into(), iv.into());
 
     // Ingress MAC and cipher
     let mut ingress_mac = MacState::new(&secrets.mac_secret)?;
     ingress_mac.update(&xor(&secrets.mac_secret, initiator_nonce));
-    ingress_mac.update(&ack);
+    ingress_mac.update(ack);
     let ingress_cipher = Ctr64BE::<Aes256>::new(aes_secret.into(), iv.into());
 
     let macs_and_ciphers = MacsAndCiphers {

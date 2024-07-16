@@ -38,7 +38,7 @@ impl Secrets {
         // Shared secret
         let shared_secret = {
             let mut hasher = Keccak256::new();
-            hasher.update(&ephemeral_key);
+            hasher.update(ephemeral_key);
             hasher.update(&nonces_hash);
             hasher.finalize().to_vec()
         };
@@ -46,7 +46,7 @@ impl Secrets {
         // AES secret
         let aes_secret = {
             let mut hasher = Keccak256::new();
-            hasher.update(&ephemeral_key);
+            hasher.update(ephemeral_key);
             hasher.update(&shared_secret);
             hasher.finalize().to_vec()
         };
@@ -54,7 +54,7 @@ impl Secrets {
         // MAC secret
         let mac_secret = {
             let mut hasher = Keccak256::new();
-            hasher.update(&ephemeral_key);
+            hasher.update(ephemeral_key);
             hasher.update(&aes_secret);
             hasher.finalize().to_vec()
         };

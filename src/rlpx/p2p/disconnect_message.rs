@@ -79,14 +79,14 @@ impl DisconnectMessageData {
     }
 }
 
-impl Into<Frame> for DisconnectMessageData {
-    fn into(self) -> Frame {
+impl From<DisconnectMessageData> for Frame {
+    fn from(val: DisconnectMessageData) -> Self {
         let mut message_data = vec![];
-        self.encode(&mut message_data);
+        val.encode(&mut message_data);
 
         Frame {
             msg_id: DISCONNECT_MSG_ID,
-            msg_data: message_data.into(),
+            msg_data: message_data,
         }
     }
 }

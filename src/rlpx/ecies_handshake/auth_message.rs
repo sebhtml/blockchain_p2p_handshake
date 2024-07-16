@@ -33,11 +33,11 @@ impl AuthMessage {
         let msg = Message::from_digest(xored);
 
         let context = Secp256k1::new();
-        let recoverable_signature = context.sign_ecdsa_recoverable(&msg, &initiator_ephemeral_seck);
+        let recoverable_signature = context.sign_ecdsa_recoverable(&msg, initiator_ephemeral_seck);
         let (recovery_id, signature_bytes) = recoverable_signature.serialize_compact();
         let recovery_id =
             u8::try_from(recovery_id.to_i32()).map_err(|_| HandshakeError::CryptoKeyError)?;
-        let signature = vec![signature_bytes.to_vec(), vec![recovery_id]].concat();
+        let signature = [signature_bytes.to_vec(), vec![recovery_id]].concat();
 
         let auth_vsn = 4;
 
@@ -79,7 +79,7 @@ pub fn prepare_auth_packet(
     let enc_auth_body = ecies_encrypt(
         initiator_static_pubk,
         initiator_ephemeral_seck,
-        &recipient_static_pubk,
+        recipient_static_pubk,
         &auth_body,
         &auth_size,
     )?;

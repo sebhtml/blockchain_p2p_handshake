@@ -15,7 +15,7 @@ impl TryFrom<&str> for ENode {
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         let re = Regex::new(r"^enode:\/\/([0-9a-f]+)@(.+):([0-9]+)$")
             .map_err(|err| HandshakeError::BadRegex(err.to_string()))?;
-        let captures = re.captures(&value).ok_or(HandshakeError::BadENodeId)?;
+        let captures = re.captures(value).ok_or(HandshakeError::BadENodeId)?;
         if captures.len() != 4 {
             return Err(HandshakeError::BadENodeId);
         }

@@ -14,21 +14,12 @@ pub struct Frame {
 }
 
 #[derive(RlpEncodable, RlpDecodable)]
+#[derive(Default)]
 pub struct HeaderData {
     capability_id: u32,
     context_id: u32,
 }
 
-impl Default for HeaderData {
-    fn default() -> Self {
-        Self {
-            // capability-id = integer, always zero
-            capability_id: Default::default(),
-            // context-id = integer, always zero
-            context_id: Default::default(),
-        }
-    }
-}
 
 impl Frame {
     /// Generate a frame.
@@ -43,7 +34,7 @@ impl Frame {
         // frame-data = msg-id || msg-data
         let mut msg_id_bytes = vec![];
         msg_id.encode(&mut msg_id_bytes);
-        let frame_data = vec![&msg_id_bytes, msg_data].concat();
+        let frame_data = [&msg_id_bytes, msg_data].concat();
 
         // frame-size = length of frame-data, encoded as a 24bit big-endian integer
         let frame_size = (frame_data.len() as u32).to_be_bytes();
@@ -59,7 +50,7 @@ impl Frame {
         } else {
             0
         };
-        let frame_padding = vec![0 as u8; frame_padding_len];
+        let frame_padding = vec![0_u8; frame_padding_len];
 
         // header-data = [capability-id, context-id]
         let mut header_data_bytes = vec![];
@@ -73,17 +64,17 @@ impl Frame {
         } else {
             0
         };
-        let header_padding = vec![0 as u8; header_padding_len];
+        let header_padding = vec![0_u8; header_padding_len];
 
         // header = frame-size || header-data || header-padding
-        let header = vec![frame_size, &header_data_bytes, &header_padding].concat();
+        let header = [frame_size, &header_data_bytes, &header_padding].concat();
 
         // header-ciphertext = aes(aes-secret, header)
         let mut header_ciphertext = header.clone();
         cipher.apply_keystream(&mut header_ciphertext);
 
         // frame-ciphertext = aes(aes-secret, frame-data || frame-padding)
-        let frame_data_and_padding = vec![frame_data, frame_padding].concat();
+        let frame_data_and_padding = [frame_data, frame_padding].concat();
 
         let mut frame_ciphertext = frame_data_and_padding.clone();
         cipher.apply_keystream(&mut frame_ciphertext);
@@ -111,12 +102,10 @@ impl Frame {
         let frame_mac = &mac_tags.frame_mac;
 
         // frame = header-ciphertext || header-mac || frame-ciphertext || frame-mac
-        let frame = vec![
-            header_ciphertext.as_slice(),
+        let frame = [header_ciphertext.as_slice(),
             header_mac,
             frame_ciphertext,
-            frame_mac,
-        ]
+            frame_mac]
         .concat();
 
         Ok(frame)
@@ -150,11 +139,11 @@ impl Frame {
         }
 
         // header-ciphertext = aes(aes-secret, header)
-        let mut header = header_ciphertext.clone();
+        let mut header = header_ciphertext;
         cipher.apply_keystream(&mut header);
 
         // header = frame-size || header-data || header-padding
-        let frame_size_bytes: [u8; 4] = vec![&vec![0], &header[..3]]
+        let frame_size_bytes: [u8; 4] = [&[0], &header[..3]]
             .concat()
             .try_into()
             .map_err(|_| HandshakeError::FrameReadError)?;

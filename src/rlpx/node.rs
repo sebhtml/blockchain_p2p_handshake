@@ -7,6 +7,12 @@ pub struct EthereumNode {
     static_pubk: PublicKey,
 }
 
+impl Default for EthereumNode {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl EthereumNode {
     pub fn new() -> Self {
         let mut rng = secp256k1::rand::thread_rng();

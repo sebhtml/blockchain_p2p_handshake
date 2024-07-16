@@ -17,7 +17,7 @@ struct EciesKeys {
 }
 
 pub fn ecdh_agree(sk: &SecretKey, pk: &PublicKey) -> Result<[u8; 32], HandshakeError> {
-    shared_secret_point(&pk, &sk)[..32]
+    shared_secret_point(pk, sk)[..32]
         .to_vec()
         .try_into()
         .map_err(|_| HandshakeError::CryptoKeyError)
@@ -36,7 +36,7 @@ fn ecies_generate_key_material(
     let k_m: [u8; 16] = shared_secret_derived_key[16..32]
         .try_into()
         .map_err(|_| HandshakeError::CryptoKeyError)?;
-    let mac_key: [u8; 32] = Sha256::digest(&k_m)
+    let mac_key: [u8; 32] = Sha256::digest(k_m)
         .to_vec()
         .try_into()
         .map_err(|_| HandshakeError::CryptoKeyError)?;
@@ -64,13 +64,13 @@ fn generate_hmac_tag(
 ) -> Result<[u8; 32], HandshakeError> {
     let mut hmac =
         Hmac::<Sha256>::new_from_slice(mac_key).map_err(|_| HandshakeError::MacGenerationError)?;
-    hmac.update(&iv);
-    hmac.update(&encrypted_message);
+    hmac.update(iv);
+    hmac.update(encrypted_message);
     hmac.update(auth_data);
     let tag = hmac.finalize().into_bytes().to_vec();
-    Ok(tag
+    tag
         .try_into()
-        .map_err(|_| HandshakeError::MacGenerationError)?)
+        .map_err(|_| HandshakeError::MacGenerationError)
 }
 
 /// AES(k, iv, m): the AES-128 encryption function in CTR mode.
@@ -91,7 +91,7 @@ pub fn ecies_encrypt(
     message: &[u8],
     auth_data: &[u8],
 ) -> Result<Vec<u8>, HandshakeError> {
-    let keys = ecies_generate_key_material(recipient_static_pubk, &initiator_ephemeral_seck)?;
+    let keys = ecies_generate_key_material(recipient_static_pubk, initiator_ephemeral_seck)?;
 
     let iv: [u8; 16] = (0..16)
         .map(|_| rand::random::<u8>())
@@ -99,16 +99,14 @@ pub fn ecies_encrypt(
         .try_into()
         .map_err(|_| HandshakeError::EncryptError)?;
 
-    let encrypted_message = aes_128_ctr_128(&keys.k_e, &iv, &message);
+    let encrypted_message = aes_128_ctr_128(&keys.k_e, &iv, message);
 
     let tag = generate_hmac_tag(&keys.k_m, &iv, &encrypted_message, auth_data)?;
 
-    Ok(vec![
-        initiator_static_pubk.serialize_uncompressed().to_vec(),
+    Ok([initiator_static_pubk.serialize_uncompressed().to_vec(),
         iv.to_vec(),
         encrypted_message,
-        tag.to_vec(),
-    ]
+        tag.to_vec()]
     .concat())
 }
 
@@ -127,13 +125,13 @@ pub fn ecies_decrypt(
     let aes_key = &keys.k_e;
     let mac_key = &keys.k_m;
 
-    let tag = generate_hmac_tag(mac_key, &iv, &encrypted_message, auth_data)?;
+    let tag = generate_hmac_tag(mac_key, iv, encrypted_message, auth_data)?;
 
     if &tag != msg_hmac_tag {
         return Err(HandshakeError::MacValidationFailure);
     }
 
-    let ack_body_and_padding = aes_128_ctr_128(aes_key, &iv, &encrypted_message);
+    let ack_body_and_padding = aes_128_ctr_128(aes_key, iv, encrypted_message);
 
     Ok(ack_body_and_padding)
 }
