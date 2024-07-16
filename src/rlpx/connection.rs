@@ -107,7 +107,6 @@ impl Connection {
 
         // Send Auth
         let auth = self.send_auth(
-            &initiator_ephemeral_seck,
             &initiator_ephemeral_pubk,
             &initiator_nonce,
             &initiator_ephemeral_seck,
@@ -237,20 +236,18 @@ impl Connection {
 
     fn send_auth(
         &mut self,
-        initiator_static_seck: &SecretKey,
         initiator_static_pubk: &PublicKey,
         initiator_nonce: &[u8; 32],
         initiator_ephemeral_seck: &SecretKey,
     ) -> Result<Vec<u8>, HandshakeError> {
         let auth_message = AuthMessage::try_new(
             &initiator_nonce,
-            initiator_static_seck,
             initiator_static_pubk,
             initiator_ephemeral_seck,
             &self.recipient_static_pubk,
         )?;
         let auth = prepare_auth_packet(
-            initiator_static_seck,
+            initiator_ephemeral_seck,
             initiator_static_pubk,
             &self.recipient_static_pubk,
             &auth_message,

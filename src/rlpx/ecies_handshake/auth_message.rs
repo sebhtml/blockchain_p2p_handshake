@@ -24,12 +24,11 @@ pub struct AuthMessage {
 impl AuthMessage {
     pub fn try_new(
         initiator_nonce: &[u8; 32],
-        initiator_static_seck: &SecretKey,
         initiator_static_pubk: &PublicKey,
         initiator_ephemeral_seck: &SecretKey,
         recipient_static_pubk: &PublicKey,
     ) -> Result<AuthMessage, HandshakeError> {
-        let shared_secret = ecdh_agree(initiator_static_seck, recipient_static_pubk)?;
+        let shared_secret = ecdh_agree(initiator_ephemeral_seck, recipient_static_pubk)?;
         let xored = xor(&shared_secret, initiator_nonce);
         let msg = Message::from_digest(xored);
 
