@@ -96,7 +96,7 @@ impl Connection {
     /// See RLPx : https://github.com/ethereum/devp2p/blob/master/rlpx.md
     pub fn handshake(
         &mut self,
-        __initiator_static_sk: &SecretKey,
+        __initiator_static_seck: &SecretKey,
         __initiator_static_pk: &PublicKey,
     ) -> Result<bool, HandshakeError> {
         let mut rng = secp256k1::rand::thread_rng();
@@ -104,14 +104,14 @@ impl Connection {
         let initiator_nonce = make_nonce()?;
 
         // TODO It is weird that we don't need initiator_ephemeral_pk in ECIES.
-        let (initiator_ephemeral_sk, initiator_ephemeral_pk) = generate_keypair(&mut rng);
+        let (initiator_ephemeral_seck, initiator_ephemeral_pk) = generate_keypair(&mut rng);
 
         // Send Auth
         let auth = self.send_auth(
-            &initiator_ephemeral_sk,
+            &initiator_ephemeral_seck,
             &initiator_ephemeral_pk,
             &initiator_nonce,
-            &initiator_ephemeral_sk,
+            &initiator_ephemeral_seck,
         )?;
         println!("Initiator wrote Auth to Recipient with len {}", auth.len());
 
@@ -125,7 +125,7 @@ impl Connection {
         // ack = ack-size || enc-ack-body
         // ack-size = size of enc-ack-body, encoded as a big-endian 16-bit integer
         let (ack_size, enc_ack_body) = ack.split_at(2);
-        let ack_body = ecies_decrypt(&initiator_ephemeral_sk, &enc_ack_body, &ack_size)?;
+        let ack_body = ecies_decrypt(&initiator_ephemeral_seck, &enc_ack_body, &ack_size)?;
         println!("Initiator read Ack from Recipient with len {}", ack.len());
 
         // Convert arc-body to AckMessage.
@@ -145,9 +145,9 @@ impl Connection {
         let mut macs_and_ciphers = setup_cryptographic_connection(
             &auth,
             &ack,
-            &initiator_ephemeral_sk,
+            &initiator_ephemeral_seck,
             &self.recipient_static_pk,
-            &initiator_ephemeral_sk,
+            &initiator_ephemeral_seck,
             &remote_ephemeral_pk,
             recipient_nonce,
             &initiator_nonce,
@@ -238,20 +238,20 @@ impl Connection {
 
     fn send_auth(
         &mut self,
-        initiator_static_sk: &SecretKey,
+        initiator_static_seck: &SecretKey,
         initiator_static_pk: &PublicKey,
         initiator_nonce: &[u8; 32],
-        initiator_ephemeral_sk: &SecretKey,
+        initiator_ephemeral_seck: &SecretKey,
     ) -> Result<Vec<u8>, HandshakeError> {
         let auth_message = AuthMessage::try_new(
             &initiator_nonce,
-            initiator_static_sk,
+            initiator_static_seck,
             initiator_static_pk,
-            initiator_ephemeral_sk,
+            initiator_ephemeral_seck,
             &self.recipient_static_pk,
         )?;
         let auth = prepare_auth_packet(
-            initiator_static_sk,
+            initiator_static_seck,
             initiator_static_pk,
             &self.recipient_static_pk,
             &auth_message,
@@ -266,18 +266,18 @@ impl Connection {
 fn setup_cryptographic_connection(
     auth: &[u8],
     ack: &[u8],
-    initiator_static_sk: &SecretKey,
+    initiator_static_seck: &SecretKey,
     recipient_static_pk: &PublicKey,
-    initiator_ephemeral_sk: &SecretKey,
+    initiator_ephemeral_seck: &SecretKey,
     remote_ephemeral_pk: &PublicKey,
     recipient_nonce: &[u8; 32],
     initiator_nonce: &[u8; 32],
 ) -> Result<MacsAndCiphers, HandshakeError> {
     // Generate session secrets.
     let secrets = Secrets::new(
-        initiator_static_sk,
+        initiator_static_seck,
         recipient_static_pk,
-        &initiator_ephemeral_sk,
+        &initiator_ephemeral_seck,
         remote_ephemeral_pk,
         recipient_nonce,
         initiator_nonce,

@@ -86,12 +86,12 @@ fn aes_128_ctr_128(key: &[u8], iv: &[u8], msg: &[u8]) -> Vec<u8> {
 /// See https://github.com/ethereum/devp2p/blob/master/rlpx.md
 pub fn ecies_encrypt(
     initiator_static_pk: &PublicKey,
-    initiator_ephemeral_sk: &SecretKey,
+    initiator_ephemeral_seck: &SecretKey,
     recipient_static_pk: &PublicKey,
     message: &[u8],
     auth_data: &[u8],
 ) -> Result<Vec<u8>, HandshakeError> {
-    let keys = ecies_generate_key_material(recipient_static_pk, &initiator_ephemeral_sk)?;
+    let keys = ecies_generate_key_material(recipient_static_pk, &initiator_ephemeral_seck)?;
 
     let iv: [u8; 16] = (0..16)
         .map(|_| rand::random::<u8>())
@@ -113,7 +113,7 @@ pub fn ecies_encrypt(
 }
 
 pub fn ecies_decrypt(
-    initiator_static_sk: &SecretKey,
+    initiator_static_seck: &SecretKey,
     enc_ack_body: &[u8],
     auth_data: &[u8],
 ) -> Result<Vec<u8>, HandshakeError> {
@@ -123,7 +123,7 @@ pub fn ecies_decrypt(
 
     let recipient_ephemeral_pk = PublicKey::from_slice(recipient_ephemeral_pk)
         .map_err(|_| HandshakeError::CryptoKeyError)?;
-    let keys = ecies_generate_key_material(&recipient_ephemeral_pk, initiator_static_sk)?;
+    let keys = ecies_generate_key_material(&recipient_ephemeral_pk, initiator_static_seck)?;
     let aes_key = &keys.k_e;
     let mac_key = &keys.k_m;
 

@@ -24,17 +24,17 @@ pub struct AuthMessage {
 impl AuthMessage {
     pub fn try_new(
         initiator_nonce: &[u8; 32],
-        initiator_static_sk: &SecretKey,
+        initiator_static_seck: &SecretKey,
         initiator_static_pk: &PublicKey,
-        initiator_ephemeral_sk: &SecretKey,
+        initiator_ephemeral_seck: &SecretKey,
         recipient_static_pk: &PublicKey,
     ) -> Result<AuthMessage, HandshakeError> {
-        let shared_secret = ecdh_agree(initiator_static_sk, recipient_static_pk)?;
+        let shared_secret = ecdh_agree(initiator_static_seck, recipient_static_pk)?;
         let xored = xor(&shared_secret, initiator_nonce);
         let msg = Message::from_digest(xored);
 
         let context = Secp256k1::new();
-        let recoverable_signature = context.sign_ecdsa_recoverable(&msg, &initiator_ephemeral_sk);
+        let recoverable_signature = context.sign_ecdsa_recoverable(&msg, &initiator_ephemeral_seck);
         let (recovery_id, signature_bytes) = recoverable_signature.serialize_compact();
         let recovery_id =
             u8::try_from(recovery_id.to_i32()).map_err(|_| HandshakeError::CryptoKeyError)?;
@@ -58,7 +58,7 @@ impl AuthMessage {
 }
 
 pub fn prepare_auth_packet(
-    initiator_ephemeral_sk: &SecretKey,
+    initiator_ephemeral_seck: &SecretKey,
     initiator_static_pk: &PublicKey,
     recipient_static_pk: &PublicKey,
     auth_message: &AuthMessage,
@@ -79,7 +79,7 @@ pub fn prepare_auth_packet(
     let auth_size = auth_size.to_be_bytes();
     let enc_auth_body = ecies_encrypt(
         initiator_static_pk,
-        initiator_ephemeral_sk,
+        initiator_ephemeral_seck,
         &recipient_static_pk,
         &auth_body,
         &auth_size,
