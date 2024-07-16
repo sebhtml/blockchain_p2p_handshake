@@ -48,7 +48,7 @@ impl AuthMessage {
                 .map_err(|_| HandshakeError::SignError)?,
             initiator_pubk: initiator_static_pk.serialize_uncompressed()[1..]
                 .try_into()
-                .unwrap(),
+                .map_err(|_| HandshakeError::CryptoKeyError)?,
             initiator_nonce: initiator_nonce.to_owned(),
             auth_vsn,
         };
@@ -75,7 +75,7 @@ pub fn prepare_auth_packet(
 
     // Encrypt
     let auth_size: usize = 65 /* pk */ + 16 /* iv */ + auth_body.len() + 32 /* tag */;
-    let auth_size = u16::try_from(auth_size).unwrap();
+    let auth_size = u16::try_from(auth_size).map_err(|_| HandshakeError::IntegerConversionError)?;
     let auth_size = auth_size.to_be_bytes();
     let enc_auth_body = ecies_encrypt(
         initiator_static_pk,
@@ -83,8 +83,7 @@ pub fn prepare_auth_packet(
         &recipient_static_pk,
         &auth_body,
         &auth_size,
-    )
-    .unwrap();
+    )?;
 
     // Make auth-packet
     let auth_packet = [&auth_size, enc_auth_body.as_slice()].concat();
@@ -109,7 +108,8 @@ mod tests {
         let mut rlp_bytes = vec![];
         encodable.encode(&mut rlp_bytes);
         let mut rlp_bytes = rlp_bytes.as_slice();
-        let decoded_msg_data = AuthMessage::decode(&mut rlp_bytes).unwrap();
+        let decoded_msg_data = AuthMessage::decode(&mut rlp_bytes)
+            .expect("RLP bytes should be decodable into a authentication message");
         assert_eq!(decoded_msg_data, encodable);
     }
 }

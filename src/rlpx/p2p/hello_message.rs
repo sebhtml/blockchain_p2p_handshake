@@ -65,7 +65,8 @@ impl TryFrom<Frame> for HelloMessageData {
 
     fn try_from(value: Frame) -> Result<Self, Self::Error> {
         let mut msg_data = value.msg_data.as_slice();
-        let msg_data = HelloMessageData::decode(&mut msg_data).unwrap();
+        let msg_data =
+            HelloMessageData::decode(&mut msg_data).map_err(|_| HandshakeError::RlpDecodeError)?;
         Ok(msg_data)
     }
 }
@@ -77,11 +78,16 @@ mod tests {
     #[test]
     fn test_encode_decode_hello_msg_data() {
         let node_id = vec![3; 64];
-        let encodable = HelloMessageData::new(&node_id.try_into().unwrap());
+        let encodable = HelloMessageData::new(
+            &node_id
+                .try_into()
+                .expect("Hello message data should be constructed without errors."),
+        );
         let mut rlp_bytes = vec![];
         encodable.encode(&mut rlp_bytes);
         let mut rlp_bytes = rlp_bytes.as_slice();
-        let decoded = HelloMessageData::decode(&mut rlp_bytes).unwrap();
+        let decoded = HelloMessageData::decode(&mut rlp_bytes)
+            .expect("RLP bytes should be decoded into a Hello without errors.");
         assert_eq!(decoded, encodable);
     }
 }

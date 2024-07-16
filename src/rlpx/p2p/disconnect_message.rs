@@ -112,7 +112,8 @@ mod tests {
         let mut rlp_bytes = vec![];
         encodable.encode(&mut rlp_bytes);
         let mut rlp_bytes = rlp_bytes.as_slice();
-        let decoded = DisconnectMessageData::decode(&mut rlp_bytes).unwrap();
+        let decoded = DisconnectMessageData::decode(&mut rlp_bytes)
+            .expect("RLP bytes should be decodable into a disconnect message");
         assert_eq!(decoded, encodable);
     }
 }

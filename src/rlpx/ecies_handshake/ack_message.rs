@@ -25,7 +25,8 @@ mod tests {
         let mut rlp_bytes = vec![];
         encodable.encode(&mut rlp_bytes);
         let mut rlp_bytes = rlp_bytes.as_slice();
-        let decoded_msg_data = AckMessage::decode(&mut rlp_bytes).unwrap();
+        let decoded_msg_data = AckMessage::decode(&mut rlp_bytes)
+            .expect("recursive length prefix bytes should be decodable to a ack message");
         assert_eq!(decoded_msg_data, encodable);
     }
 }

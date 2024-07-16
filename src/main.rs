@@ -1,5 +1,3 @@
-// - TODO remove calls to unwrap
-
 use std::process::ExitCode;
 
 use clap::Parser;

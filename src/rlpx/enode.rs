@@ -52,21 +52,27 @@ mod tests {
     #[test]
     fn test_parse_id() {
         let enode_string = "enode://c88b0b80d60d73a91179062402e65971510390813dcd5af34a9306da8c085ca1d75e3b398b6eacbdfcabc4038596fc2ea0fe35faf5ccf6202daf19db586ed2e7@127.0.0.1:30303";
-        let enode: ENode = enode_string.try_into().unwrap();
+        let enode: ENode = enode_string
+            .try_into()
+            .expect("string should contain a valid ethereum node id");
         assert_eq!(enode.id, "c88b0b80d60d73a91179062402e65971510390813dcd5af34a9306da8c085ca1d75e3b398b6eacbdfcabc4038596fc2ea0fe35faf5ccf6202daf19db586ed2e7");
     }
 
     #[test]
     fn test_parse_ip_addr() {
         let enode_string = "enode://c88b0b80d60d73a91179062402e65971510390813dcd5af34a9306da8c085ca1d75e3b398b6eacbdfcabc4038596fc2ea0fe35faf5ccf6202daf19db586ed2e7@127.0.0.1:30303";
-        let enode: ENode = enode_string.try_into().unwrap();
+        let enode: ENode = enode_string
+            .try_into()
+            .expect("string should contain a valid ethereum node id");
         assert_eq!(enode.ip_addr, "127.0.0.1");
     }
 
     #[test]
     fn test_parse_port() {
         let enode_string = "enode://c88b0b80d60d73a91179062402e65971510390813dcd5af34a9306da8c085ca1d75e3b398b6eacbdfcabc4038596fc2ea0fe35faf5ccf6202daf19db586ed2e7@127.0.0.1:30303";
-        let enode: ENode = enode_string.try_into().unwrap();
+        let enode: ENode = enode_string
+            .try_into()
+            .expect("string should contain a valid ethereum node id");
         assert_eq!(enode.port, 30303);
     }
 }
