@@ -10,8 +10,11 @@ struct Args {
     #[arg(short, long)]
     recipient: String,
 }
+use log::{error, info};
 
 fn main() -> Result<ExitCode, HandshakeError> {
+    env_logger::init();
+
     let args = Args::parse();
     let recipient = args.recipient;
     let recipient_enode: ENode = recipient
@@ -24,10 +27,10 @@ fn main() -> Result<ExitCode, HandshakeError> {
 
     match result {
         Ok(_ephemeral_secrets) => {
-            println!("Handshake with {} was successful", recipient,)
+            info!("Handshake with {} was successful", recipient,)
         }
         Err(err) => {
-            println!("Handshake failed with error {}", err);
+            error!("Handshake failed with error {}", err);
             return Err(err);
         }
     }

@@ -24,11 +24,12 @@ pub struct HelloMessageData {
 
 impl Display for HelloMessageData {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let _ = writeln!(f, "protocol_version: {}", self.protocol_version);
-        let _ = writeln!(f, "client_id: {}", self.client_id);
-        let _ = writeln!(f, "capabilities: {:?}", self.capabilities);
-        let _ = writeln!(f, "listen_port: {}", self.listen_port);
-        let res = writeln!(f, "node_id: {}", hex::encode(self.node_id));
+        let _ = writeln!(f, "HelloMessageData:");
+        let _ = writeln!(f, "  protocol_version: {}", self.protocol_version);
+        let _ = writeln!(f, "  client_id: {}", self.client_id);
+        let _ = writeln!(f, "  capabilities: {:?}", self.capabilities);
+        let _ = writeln!(f, "  listen_port: {}", self.listen_port);
+        let res = write!(f, "  node_id: {}", hex::encode(self.node_id));
         res
     }
 }

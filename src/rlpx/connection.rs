@@ -1,13 +1,13 @@
+use aes::{cipher::KeyIvInit, Aes256};
+use alloy_rlp::Decodable;
+use ctr::Ctr64BE;
+use log::info;
+use secp256k1::{generate_keypair, PublicKey, SecretKey};
 use std::{
     io::{Read, Write},
     net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, TcpStream},
     str::FromStr,
 };
-
-use aes::{cipher::KeyIvInit, Aes256};
-use alloy_rlp::Decodable;
-use ctr::Ctr64BE;
-use secp256k1::{generate_keypair, PublicKey, SecretKey};
 
 use crate::rlpx::{
     ecies_handshake::{
@@ -111,7 +111,7 @@ impl Connection {
             &initiator_nonce,
             &initiator_ephemeral_seck,
         )?;
-        println!("Initiator wrote Auth to Recipient with len {}", auth.len());
+        info!("Initiator wrote Auth to Recipient with len {}", auth.len());
 
         // Read Ack
         let ack = self.read_bytes()?;
@@ -124,8 +124,7 @@ impl Connection {
         // ack-size = size of enc-ack-body, encoded as a big-endian 16-bit integer
         let (ack_size, enc_ack_body) = ack.split_at(2);
         let ack_body = ecies_decrypt(&initiator_ephemeral_seck, &enc_ack_body, &ack_size)?;
-        println!("Initiator read Ack from Recipient with len {}", ack.len());
-        println!("");
+        info!("Initiator read Ack from Recipient with len {}", ack.len());
 
         // Convert arc-body to AckMessage.
         let ack_message = AckMessage::decode(&mut ack_body.as_slice())
@@ -171,10 +170,8 @@ impl Connection {
         let egress_frame_bytes = egress_frame.write_frame(egress_cipher, egress_mac)?;
 
         let _ = self.write_bytes(&egress_frame_bytes)?;
-        println!(
-            "Initiator wrote Hello to Recipient with len {}",
-            hello_from_initiator
-        );
+        info!("Initiator wrote Hello to Recipient",);
+        info!("{}", hello_from_initiator);
 
         // Receive hello from recipient
         let ingress_frame_bytes = self.read_bytes()?;
@@ -187,10 +184,8 @@ impl Connection {
         }
 
         let hello_from_recipient: HelloMessageData = ingress_frame.try_into()?;
-        println!(
-            "Initiator received Hello from Recipient {}",
-            hello_from_recipient
-        );
+        info!("Initiator received Hello from Recipient",);
+        info!("{}", hello_from_recipient);
 
         // Check protocol version
         if hello_from_recipient.protocol_version != 5 {
@@ -208,11 +203,11 @@ impl Connection {
         }
 
         let ingress_msg_data: DisconnectMessageData = ingress_frame.try_into()?;
-        println!(
+        info!(
             "Initiator received Disconnect from Recipient {:?}",
             ingress_msg_data
         );
-        println!("Reason: {:?}", ingress_msg_data.reason());
+        info!("Reason: {:?}", ingress_msg_data.reason());
 
         // Check protocol version
         if ingress_msg_data.reason()? != Reason::UselessPeer {
@@ -224,7 +219,7 @@ impl Connection {
         let egress_frame_bytes = egress_frame.write_frame(egress_cipher, egress_mac)?;
 
         let bytes_written = self.write_bytes(&egress_frame_bytes)?;
-        println!(
+        info!(
             "Initiator wrote Disconnect to Recipient with len {}",
             bytes_written
         );
