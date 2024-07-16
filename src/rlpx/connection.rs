@@ -142,10 +142,11 @@ impl Connection {
         let recipient_nonce = &ack_message.recipient_nonce;
 
         // The Auth and Ack things are done.
-        let mut macs_and_ciphers = self.setup_cryptographic_connection(
+        let mut macs_and_ciphers = Self::setup_cryptographic_connection(
             &auth,
             &ack,
             &initiator_ephemeral_sk,
+            &self.recipient_static_pk,
             &initiator_ephemeral_sk,
             &remote_ephemeral_pk,
             recipient_nonce,
@@ -262,10 +263,10 @@ impl Connection {
     }
 
     fn setup_cryptographic_connection(
-        &mut self,
         auth: &[u8],
         ack: &[u8],
         initiator_static_sk: &SecretKey,
+        recipient_static_pk: &PublicKey,
         initiator_ephemeral_sk: &SecretKey,
         remote_ephemeral_pk: &PublicKey,
         recipient_nonce: &[u8; 32],
@@ -274,7 +275,7 @@ impl Connection {
         // Generate session secrets.
         let secrets = Secrets::new(
             initiator_static_sk,
-            &self.recipient_static_pk,
+            recipient_static_pk,
             &initiator_ephemeral_sk,
             remote_ephemeral_pk,
             recipient_nonce,
