@@ -29,7 +29,7 @@ use super::{
 };
 
 pub struct Connection {
-    pub recipient_static_pk: PublicKey,
+    pub recipient_static_pubk: PublicKey,
     pub stream: TcpStream,
 }
 
@@ -58,14 +58,14 @@ fn get_socket(ip_address: &str, port: u16) -> Result<SocketAddr, HandshakeError>
 
 impl Connection {
     pub fn new(recipient_enode: &ENode) -> Result<Self, HandshakeError> {
-        let static_pk: PublicKey = recipient_enode
+        let static_pubk: PublicKey = recipient_enode
             .try_into()
             .map_err(|_| HandshakeError::CryptoKeyError)?;
         let recipient_socket = get_socket(&recipient_enode.ip_addr, recipient_enode.port)?;
         let stream = TcpStream::connect(recipient_socket)
             .map_err(|err| HandshakeError::IOError(err.to_string()))?;
         let peer = Self {
-            recipient_static_pk: static_pk,
+            recipient_static_pubk: static_pubk,
             stream,
         };
 
@@ -97,19 +97,18 @@ impl Connection {
     pub fn handshake(
         &mut self,
         __initiator_static_seck: &SecretKey,
-        __initiator_static_pk: &PublicKey,
+        __initiator_static_pubk: &PublicKey,
     ) -> Result<bool, HandshakeError> {
         let mut rng = secp256k1::rand::thread_rng();
 
         let initiator_nonce = make_nonce()?;
 
-        // TODO It is weird that we don't need initiator_ephemeral_pk in ECIES.
-        let (initiator_ephemeral_seck, initiator_ephemeral_pk) = generate_keypair(&mut rng);
+        let (initiator_ephemeral_seck, initiator_ephemeral_pubk) = generate_keypair(&mut rng);
 
         // Send Auth
         let auth = self.send_auth(
             &initiator_ephemeral_seck,
-            &initiator_ephemeral_pk,
+            &initiator_ephemeral_pubk,
             &initiator_nonce,
             &initiator_ephemeral_seck,
         )?;
@@ -136,7 +135,7 @@ impl Connection {
             ack_message.recipient_ephemeral_pubk.as_slice(),
         ]
         .concat();
-        let remote_ephemeral_pk = PublicKey::from_slice(&recipient_ephemeral_pubk)
+        let remote_ephemeral_pubk = PublicKey::from_slice(&recipient_ephemeral_pubk)
             .map_err(|_| HandshakeError::CryptoKeyError)?;
 
         let recipient_nonce = &ack_message.recipient_nonce;
@@ -146,9 +145,9 @@ impl Connection {
             &auth,
             &ack,
             &initiator_ephemeral_seck,
-            &self.recipient_static_pk,
+            &self.recipient_static_pubk,
             &initiator_ephemeral_seck,
-            &remote_ephemeral_pk,
+            &remote_ephemeral_pubk,
             recipient_nonce,
             &initiator_nonce,
         )?;
@@ -161,7 +160,7 @@ impl Connection {
         // Send Hello to recipient
         let egress_frame: Frame = HelloMessageData::new(
             // TODO send static pk in node_id here
-            initiator_ephemeral_pk.serialize_uncompressed()[1..]
+            initiator_ephemeral_pubk.serialize_uncompressed()[1..]
                 .try_into()
                 .map_err(|_| HandshakeError::CryptoKeyError)?,
         )
@@ -239,21 +238,21 @@ impl Connection {
     fn send_auth(
         &mut self,
         initiator_static_seck: &SecretKey,
-        initiator_static_pk: &PublicKey,
+        initiator_static_pubk: &PublicKey,
         initiator_nonce: &[u8; 32],
         initiator_ephemeral_seck: &SecretKey,
     ) -> Result<Vec<u8>, HandshakeError> {
         let auth_message = AuthMessage::try_new(
             &initiator_nonce,
             initiator_static_seck,
-            initiator_static_pk,
+            initiator_static_pubk,
             initiator_ephemeral_seck,
-            &self.recipient_static_pk,
+            &self.recipient_static_pubk,
         )?;
         let auth = prepare_auth_packet(
             initiator_static_seck,
-            initiator_static_pk,
-            &self.recipient_static_pk,
+            initiator_static_pubk,
+            &self.recipient_static_pubk,
             &auth_message,
         )?;
 
@@ -267,18 +266,18 @@ fn setup_cryptographic_connection(
     auth: &[u8],
     ack: &[u8],
     initiator_static_seck: &SecretKey,
-    recipient_static_pk: &PublicKey,
+    recipient_static_pubk: &PublicKey,
     initiator_ephemeral_seck: &SecretKey,
-    remote_ephemeral_pk: &PublicKey,
+    remote_ephemeral_pubk: &PublicKey,
     recipient_nonce: &[u8; 32],
     initiator_nonce: &[u8; 32],
 ) -> Result<MacsAndCiphers, HandshakeError> {
     // Generate session secrets.
     let secrets = Secrets::new(
         initiator_static_seck,
-        recipient_static_pk,
+        recipient_static_pubk,
         &initiator_ephemeral_seck,
-        remote_ephemeral_pk,
+        remote_ephemeral_pubk,
         recipient_nonce,
         initiator_nonce,
     )?;

@@ -25,11 +25,11 @@ impl AuthMessage {
     pub fn try_new(
         initiator_nonce: &[u8; 32],
         initiator_static_seck: &SecretKey,
-        initiator_static_pk: &PublicKey,
+        initiator_static_pubk: &PublicKey,
         initiator_ephemeral_seck: &SecretKey,
-        recipient_static_pk: &PublicKey,
+        recipient_static_pubk: &PublicKey,
     ) -> Result<AuthMessage, HandshakeError> {
-        let shared_secret = ecdh_agree(initiator_static_seck, recipient_static_pk)?;
+        let shared_secret = ecdh_agree(initiator_static_seck, recipient_static_pubk)?;
         let xored = xor(&shared_secret, initiator_nonce);
         let msg = Message::from_digest(xored);
 
@@ -46,7 +46,7 @@ impl AuthMessage {
             sig: signature
                 .try_into()
                 .map_err(|_| HandshakeError::SignError)?,
-            initiator_pubk: initiator_static_pk.serialize_uncompressed()[1..]
+            initiator_pubk: initiator_static_pubk.serialize_uncompressed()[1..]
                 .try_into()
                 .map_err(|_| HandshakeError::CryptoKeyError)?,
             initiator_nonce: initiator_nonce.to_owned(),
@@ -59,8 +59,8 @@ impl AuthMessage {
 
 pub fn prepare_auth_packet(
     initiator_ephemeral_seck: &SecretKey,
-    initiator_static_pk: &PublicKey,
-    recipient_static_pk: &PublicKey,
+    initiator_static_pubk: &PublicKey,
+    recipient_static_pubk: &PublicKey,
     auth_message: &AuthMessage,
 ) -> Result<Vec<u8>, HandshakeError> {
     // Encode auth with RLP
@@ -78,9 +78,9 @@ pub fn prepare_auth_packet(
     let auth_size = u16::try_from(auth_size).map_err(|_| HandshakeError::IntegerConversionError)?;
     let auth_size = auth_size.to_be_bytes();
     let enc_auth_body = ecies_encrypt(
-        initiator_static_pk,
+        initiator_static_pubk,
         initiator_ephemeral_seck,
-        &recipient_static_pk,
+        &recipient_static_pubk,
         &auth_body,
         &auth_size,
     )?;

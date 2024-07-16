@@ -18,14 +18,14 @@ pub struct Secrets {
 impl Secrets {
     pub fn new(
         static_seck: &SecretKey,
-        remote_static_pk: &PublicKey,
+        remote_static_pubk: &PublicKey,
         ephemeral_seck: &SecretKey,
-        remote_ephemeral_pk: &PublicKey,
+        remote_ephemeral_pubk: &PublicKey,
         nonce: &[u8; 32],
         initiator_nonce: &[u8; 32],
     ) -> Result<Self, HandshakeError> {
-        let static_shared_secret = ecdh_agree(static_seck, remote_static_pk)?;
-        let ephemeral_key = ecdh_agree(ephemeral_seck, remote_ephemeral_pk)?;
+        let static_shared_secret = ecdh_agree(static_seck, remote_static_pubk)?;
+        let ephemeral_key = ecdh_agree(ephemeral_seck, remote_ephemeral_pubk)?;
 
         //Hash the nonces
         let nonces_hash = {

@@ -85,13 +85,13 @@ fn aes_128_ctr_128(key: &[u8], iv: &[u8], msg: &[u8]) -> Vec<u8> {
 /// Elliptic Curve Integrated Encryption Scheme
 /// See https://github.com/ethereum/devp2p/blob/master/rlpx.md
 pub fn ecies_encrypt(
-    initiator_static_pk: &PublicKey,
+    initiator_static_pubk: &PublicKey,
     initiator_ephemeral_seck: &SecretKey,
-    recipient_static_pk: &PublicKey,
+    recipient_static_pubk: &PublicKey,
     message: &[u8],
     auth_data: &[u8],
 ) -> Result<Vec<u8>, HandshakeError> {
-    let keys = ecies_generate_key_material(recipient_static_pk, &initiator_ephemeral_seck)?;
+    let keys = ecies_generate_key_material(recipient_static_pubk, &initiator_ephemeral_seck)?;
 
     let iv: [u8; 16] = (0..16)
         .map(|_| rand::random::<u8>())
@@ -104,7 +104,7 @@ pub fn ecies_encrypt(
     let tag = generate_hmac_tag(&keys.k_m, &iv, &encrypted_message, auth_data)?;
 
     Ok(vec![
-        initiator_static_pk.serialize_uncompressed().to_vec(),
+        initiator_static_pubk.serialize_uncompressed().to_vec(),
         iv.to_vec(),
         encrypted_message,
         tag.to_vec(),
@@ -117,13 +117,13 @@ pub fn ecies_decrypt(
     enc_ack_body: &[u8],
     auth_data: &[u8],
 ) -> Result<Vec<u8>, HandshakeError> {
-    let (recipient_ephemeral_pk, rest) = enc_ack_body.split_at(65);
+    let (recipient_ephemeral_pubk, rest) = enc_ack_body.split_at(65);
     let (iv, rest) = rest.split_at(16);
     let (encrypted_message, msg_hmac_tag) = rest.split_at(rest.len() - 32);
 
-    let recipient_ephemeral_pk = PublicKey::from_slice(recipient_ephemeral_pk)
+    let recipient_ephemeral_pubk = PublicKey::from_slice(recipient_ephemeral_pubk)
         .map_err(|_| HandshakeError::CryptoKeyError)?;
-    let keys = ecies_generate_key_material(&recipient_ephemeral_pk, initiator_static_seck)?;
+    let keys = ecies_generate_key_material(&recipient_ephemeral_pubk, initiator_static_seck)?;
     let aes_key = &keys.k_e;
     let mac_key = &keys.k_m;
 
