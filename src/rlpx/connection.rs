@@ -92,8 +92,8 @@ impl Connection {
         Ok(buffer[0..bytes_read].to_vec())
     }
 
-    /// Use the 'p2p' capability to add a peer to do a handshake.
-    /// See RLPx : https://github.com/ethereum/devp2p/blob/master/rlpx.md
+    /// Use the 'p2p' capability to do a handshake.
+    /// See https://github.com/ethereum/devp2p/blob/master/rlpx.md#initial-handshake
     pub fn handshake(
         &mut self,
         initiator_static_seck: &SecretKey,
@@ -125,6 +125,7 @@ impl Connection {
         let (ack_size, enc_ack_body) = ack.split_at(2);
         let ack_body = ecies_decrypt(&initiator_ephemeral_seck, &enc_ack_body, &ack_size)?;
         println!("Initiator read Ack from Recipient with len {}", ack.len());
+        println!("");
 
         // Convert arc-body to AckMessage.
         let ack_message = AckMessage::decode(&mut ack_body.as_slice())
@@ -164,14 +165,15 @@ impl Connection {
         let node_id = binding[1..]
             .try_into()
             .map_err(|_| HandshakeError::CryptoKeyError)?;
-        let egress_frame: Frame = HelloMessageData::new(node_id).into();
+        let hello_from_initiator = HelloMessageData::new(node_id);
+        let egress_frame: Frame = (&hello_from_initiator).into();
 
         let egress_frame_bytes = egress_frame.write_frame(egress_cipher, egress_mac)?;
 
-        let bytes_written = self.write_bytes(&egress_frame_bytes)?;
+        let _ = self.write_bytes(&egress_frame_bytes)?;
         println!(
             "Initiator wrote Hello to Recipient with len {}",
-            bytes_written
+            hello_from_initiator
         );
 
         // Receive hello from recipient
@@ -184,14 +186,14 @@ impl Connection {
             return Err(HandshakeError::BadRecipientHelloMsgId);
         }
 
-        let ingress_msg_data: HelloMessageData = ingress_frame.try_into()?;
+        let hello_from_recipient: HelloMessageData = ingress_frame.try_into()?;
         println!(
             "Initiator received Hello from Recipient {}",
-            ingress_msg_data
+            hello_from_recipient
         );
 
         // Check protocol version
-        if ingress_msg_data.protocol_version != 5 {
+        if hello_from_recipient.protocol_version != 5 {
             return Err(HandshakeError::RecipientHelloP2pProtocolMismatch);
         }
 
@@ -232,6 +234,8 @@ impl Connection {
             return Err(HandshakeError::RecipientDidNotDisconnect);
         }
 
+        // https://github.com/ethereum/devp2p/blob/master/rlpx.md#initial-handshake
+        // cryptographic handshake is complete if MAC of first encrypted frame is valid on both sides
         Ok(true)
     }
 

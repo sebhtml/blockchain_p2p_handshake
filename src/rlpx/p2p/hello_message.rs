@@ -48,7 +48,7 @@ impl HelloMessageData {
     }
 }
 
-impl Into<Frame> for HelloMessageData {
+impl Into<Frame> for &HelloMessageData {
     fn into(self) -> Frame {
         let mut message_data = vec![];
         self.encode(&mut message_data);
