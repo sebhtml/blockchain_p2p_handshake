@@ -134,22 +134,24 @@ impl Connection {
             ack_message.recipient_ephemeral_pubk.as_slice(),
         ]
         .concat();
-        let remote_ephemeral_pubk = PublicKey::from_slice(&recipient_ephemeral_pubk)
+        let recipient_ephemeral_pubk = PublicKey::from_slice(&recipient_ephemeral_pubk)
             .map_err(|_| HandshakeError::CryptoKeyError)?;
 
         let recipient_nonce = &ack_message.recipient_nonce;
 
-        // The Auth and Ack things are done.
-        let mut macs_and_ciphers = setup_cryptographic_connection(
-            &auth,
-            &ack,
+        // Generate session secrets.
+        let secrets = Secrets::new(
             initiator_static_seck,
             &self.recipient_static_pubk,
             &initiator_ephemeral_seck,
-            &remote_ephemeral_pubk,
+            &recipient_ephemeral_pubk,
             recipient_nonce,
             &initiator_nonce,
         )?;
+
+        // The Auth and Ack things are done.
+        let mut macs_and_ciphers =
+            get_macs_and_ciphers(&secrets, &auth, &ack, recipient_nonce, &initiator_nonce)?;
 
         let egress_mac = &mut macs_and_ciphers.egress.mac;
         let egress_cipher = &mut macs_and_ciphers.egress.cipher;
@@ -259,26 +261,13 @@ impl Connection {
     }
 }
 
-fn setup_cryptographic_connection(
+fn get_macs_and_ciphers(
+    secrets: &Secrets,
     auth: &[u8],
     ack: &[u8],
-    initiator_static_seck: &SecretKey,
-    recipient_static_pubk: &PublicKey,
-    initiator_ephemeral_seck: &SecretKey,
-    recipient_ephemeral_pubk: &PublicKey,
     recipient_nonce: &[u8; 32],
     initiator_nonce: &[u8; 32],
 ) -> Result<MacsAndCiphers, HandshakeError> {
-    // Generate session secrets.
-    let secrets = Secrets::new(
-        initiator_static_seck,
-        recipient_static_pubk,
-        initiator_ephemeral_seck,
-        recipient_ephemeral_pubk,
-        recipient_nonce,
-        initiator_nonce,
-    )?;
-
     // key and iv for egress and ingress
     let aes_secret = secrets.aes_secret.as_slice();
     let iv = [0_u8; 16].as_slice();
