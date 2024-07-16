@@ -39,7 +39,8 @@ impl TryInto<PublicKey> for &ENode {
         let mut data = [0_u8; 65];
         data[0] = 4;
         data[1..].copy_from_slice(&bytes);
-        let recipient_pub_key = PublicKey::from_slice(&data).unwrap();
+        let recipient_pub_key =
+            PublicKey::from_slice(&data).map_err(|_| HandshakeError::CryptoKeyError)?;
         Ok(recipient_pub_key)
     }
 }

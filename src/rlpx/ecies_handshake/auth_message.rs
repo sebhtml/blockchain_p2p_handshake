@@ -43,7 +43,9 @@ impl AuthMessage {
         let auth_vsn = 4;
 
         let auth = AuthMessage {
-            sig: signature.try_into().unwrap(),
+            sig: signature
+                .try_into()
+                .map_err(|_| HandshakeError::SignError)?,
             initiator_pubk: initiator_static_pk.serialize_uncompressed()[1..]
                 .try_into()
                 .unwrap(),

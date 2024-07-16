@@ -96,7 +96,8 @@ impl TryFrom<Frame> for DisconnectMessageData {
 
     fn try_from(value: Frame) -> Result<Self, Self::Error> {
         let mut msg_data = value.msg_data.as_slice();
-        let msg_data = DisconnectMessageData::decode(&mut msg_data).unwrap();
+        let msg_data = DisconnectMessageData::decode(&mut msg_data)
+            .map_err(|_| HandshakeError::RlpDecodeError)?;
         Ok(msg_data)
     }
 }

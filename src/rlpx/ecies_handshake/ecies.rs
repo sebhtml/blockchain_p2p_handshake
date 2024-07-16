@@ -68,7 +68,9 @@ fn generate_hmac_tag(
     hmac.update(&encrypted_message);
     hmac.update(auth_data);
     let tag = hmac.finalize().into_bytes().to_vec();
-    Ok(tag.try_into().unwrap())
+    Ok(tag
+        .try_into()
+        .map_err(|_| HandshakeError::MacGenerationError)?)
 }
 
 /// AES(k, iv, m): the AES-128 encryption function in CTR mode.
@@ -95,7 +97,7 @@ pub fn ecies_encrypt(
         .map(|_| rand::random::<u8>())
         .collect::<Vec<_>>()
         .try_into()
-        .unwrap();
+        .map_err(|_| HandshakeError::EncryptError)?;
 
     let encrypted_message = aes_128_ctr_128(&keys.k_e, &iv, &message);
 
@@ -112,7 +114,6 @@ pub fn ecies_encrypt(
 
 pub fn ecies_decrypt(
     initiator_static_sk: &SecretKey,
-    _recipient_static_pk: &PublicKey,
     enc_ack_body: &[u8],
     auth_data: &[u8],
 ) -> Result<Vec<u8>, HandshakeError> {
@@ -120,7 +121,8 @@ pub fn ecies_decrypt(
     let (iv, rest) = rest.split_at(16);
     let (encrypted_message, msg_hmac_tag) = rest.split_at(rest.len() - 32);
 
-    let recipient_ephemeral_pk = PublicKey::from_slice(recipient_ephemeral_pk).unwrap();
+    let recipient_ephemeral_pk = PublicKey::from_slice(recipient_ephemeral_pk)
+        .map_err(|_| HandshakeError::CryptoKeyError)?;
     let keys = ecies_generate_key_material(&recipient_ephemeral_pk, initiator_static_sk)?;
     let aes_key = &keys.k_e;
     let mac_key = &keys.k_m;

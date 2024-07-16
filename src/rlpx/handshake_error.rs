@@ -3,7 +3,9 @@ use std::fmt::Display;
 #[derive(Debug)]
 pub enum HandshakeError {
     BadENodeId,
+    EncryptError,
     CryptoKeyError,
+    SignError,
     BadRegex(String),
     BadRecipientNodeAddress,
     BadRecipientPortInteger,
@@ -29,10 +31,12 @@ pub enum HandshakeError {
 impl Display for HandshakeError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            HandshakeError::BadENodeId => write!(f, "BadENodeId"),
+            HandshakeError::EncryptError => write!(f, "EncryptError"),
+            HandshakeError::SignError => write!(f, "SignError"),
             HandshakeError::BadRecipientNodeAddress => write!(f, "BadTargetNodeAddress"),
             HandshakeError::BadRecipientPortInteger => write!(f, "BadTargetPortInteger"),
             HandshakeError::IOError(err) => write!(f, "IOError: {}", err),
-            HandshakeError::BadENodeId => write!(f, "BadENodeId"),
             HandshakeError::MacValidationFailure => write!(f, "MacValidationFailure"),
             HandshakeError::MacGenerationError => write!(f, "MacGenerationError"),
             HandshakeError::CryptoKeyError => write!(f, "CryptoKeyError"),

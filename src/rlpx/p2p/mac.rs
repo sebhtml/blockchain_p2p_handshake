@@ -64,7 +64,7 @@ impl MacState {
 
         self.cipher
             .encrypt_padded::<NoPadding>(&mut aes_mac, msg_len)
-            .unwrap();
+            .map_err(|_| HandshakeError::EncryptError)?;
 
         let header_mac_seed = xor(&aes_mac, header_ciphertext);
         self.update(&header_mac_seed);
@@ -85,7 +85,7 @@ impl MacState {
 
         self.cipher
             .encrypt_padded::<NoPadding>(&mut aes_mac, msg_len)
-            .unwrap();
+            .map_err(|_| HandshakeError::EncryptError)?;
 
         let mac = self.mac()?;
 

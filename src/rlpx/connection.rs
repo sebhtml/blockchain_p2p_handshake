@@ -101,7 +101,7 @@ impl Connection {
     ) -> Result<bool, HandshakeError> {
         let mut rng = secp256k1::rand::thread_rng();
 
-        let initiator_nonce = make_nonce();
+        let initiator_nonce = make_nonce()?;
 
         // TODO It is weird that we don't need initiator_ephemeral_pk in ECIES.
         let (initiator_ephemeral_sk, _initiator_ephemeral_pk) = generate_keypair(&mut rng);
@@ -125,12 +125,7 @@ impl Connection {
         // ack = ack-size || enc-ack-body
         // ack-size = size of enc-ack-body, encoded as a big-endian 16-bit integer
         let (ack_size, enc_ack_body) = ack.split_at(2);
-        let ack_body = ecies_decrypt(
-            initiator_static_sk,
-            &self.recipient_static_pk,
-            &enc_ack_body,
-            &ack_size,
-        )?;
+        let ack_body = ecies_decrypt(initiator_static_sk, &enc_ack_body, &ack_size)?;
         println!("Initiator read Ack from Recipient with len {}", ack.len());
 
         // Convert arc-body to AckMessage.
