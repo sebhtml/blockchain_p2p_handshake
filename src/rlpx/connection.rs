@@ -96,20 +96,20 @@ impl Connection {
     /// See RLPx : https://github.com/ethereum/devp2p/blob/master/rlpx.md
     pub fn handshake(
         &mut self,
-        initiator_static_sk: &SecretKey,
-        initiator_static_pk: &PublicKey,
+        __initiator_static_sk: &SecretKey,
+        __initiator_static_pk: &PublicKey,
     ) -> Result<bool, HandshakeError> {
         let mut rng = secp256k1::rand::thread_rng();
 
         let initiator_nonce = make_nonce()?;
 
         // TODO It is weird that we don't need initiator_ephemeral_pk in ECIES.
-        let (initiator_ephemeral_sk, _initiator_ephemeral_pk) = generate_keypair(&mut rng);
+        let (initiator_ephemeral_sk, initiator_ephemeral_pk) = generate_keypair(&mut rng);
 
         // Send Auth
         let auth = self.send_auth(
-            initiator_static_sk,
-            initiator_static_pk,
+            &initiator_ephemeral_sk,
+            &initiator_ephemeral_pk,
             &initiator_nonce,
             &initiator_ephemeral_sk,
         )?;
@@ -125,7 +125,7 @@ impl Connection {
         // ack = ack-size || enc-ack-body
         // ack-size = size of enc-ack-body, encoded as a big-endian 16-bit integer
         let (ack_size, enc_ack_body) = ack.split_at(2);
-        let ack_body = ecies_decrypt(initiator_static_sk, &enc_ack_body, &ack_size)?;
+        let ack_body = ecies_decrypt(&initiator_ephemeral_sk, &enc_ack_body, &ack_size)?;
         println!("Initiator read Ack from Recipient with len {}", ack.len());
 
         // Convert arc-body to AckMessage.
@@ -145,7 +145,7 @@ impl Connection {
         let mut macs_and_ciphers = self.setup_cryptographic_connection(
             &auth,
             &ack,
-            initiator_static_sk,
+            &initiator_ephemeral_sk,
             &initiator_ephemeral_sk,
             &remote_ephemeral_pk,
             recipient_nonce,
@@ -159,7 +159,8 @@ impl Connection {
 
         // Send Hello to recipient
         let egress_frame: Frame = HelloMessageData::new(
-            initiator_static_pk.serialize_uncompressed()[1..]
+            // TODO send static pk in node_id here
+            initiator_ephemeral_pk.serialize_uncompressed()[1..]
                 .try_into()
                 .map_err(|_| HandshakeError::CryptoKeyError)?,
         )
