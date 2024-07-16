@@ -21,6 +21,7 @@ Documentation:
 - The capability 'eth' is not implemented.
 - Ping and Pong messages from the 'p2p' capability are not implemented since go-ethereum sends a Disconnect when the 'eth' capability is not present.
 - The eth wire protocol is not implemented since it's not part of the handshake. https://github.com/ethereum/devp2p/blob/master/caps/eth.md
+- The Git history is provided in the tarball.
 
 # Rust code Style
 
