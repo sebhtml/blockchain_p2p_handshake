@@ -22,8 +22,7 @@ impl TryFrom<&str> for ENode {
         let id = captures[1].to_owned();
         let ip_addr = captures[2].to_owned();
         let port = &captures[3];
-        let port =
-            u16::from_str_radix(port, 10).map_err(|_| HandshakeError::BadRecipientPortInteger)?;
+        let port = str::parse::<u16>(port).map_err(|_| HandshakeError::BadRecipientPortInteger)?;
 
         let enode = ENode { id, ip_addr, port };
         Ok(enode)
